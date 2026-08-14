@@ -1,0 +1,39 @@
+# Environment files - NEVER commit these
+.env
+*.env
+
+# Flutter/Dart files
+.dart_tool/
+.pub/
+build/
+flutter_*.png
+*.skslpp
+.packages
+.version
+.pubdeps
+.pubdeps.lock
+.pubspec.lock
+.pubspec.overrides.yaml
+.pub-cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+
+# Build outputs
+*.tgz
+*.tar.gz

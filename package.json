@@ -1,0 +1,40 @@
+{
+  "name": "careqa",
+  "version": "1.0.0",
+  "description": "CareQA Flutter Monorepo - Staff and Admin Applications",
+  "main": "README.md",
+  "scripts": {
+    "build:admin": "cd admin-app && flutter pub get",
+    "build:staff": "cd staff-app && flutter pub get",
+    "build:all": "npm run build:admin && npm run build:staff",
+    "run:admin": "cd admin-app && flutter run",
+    "run:staff": "cd staff-app && flutter run",
+    "run:all": "concurrently \"npm run run:admin\" \"npm run run:staff\"",
+    "test:admin": "cd admin-app && flutter test",
+    "test:staff": "cd staff-app && flutter test",
+    "test:all": "npm run test:admin && npm run test:staff"
+  },
+  "keywords": [
+    "flutter",
+    "firebase",
+    "care",
+    "management",
+    "healthcare"
+  ],
+  "author": "CareQA Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.99.1",
+    "concurrently": "^8.2.2",
+    "supabase": "^2.78.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/careqa.git"
+  },
+  "homepage": "https://github.com/your-org/careqa#readme",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "pg": "^8.20.0"
+  }
+}

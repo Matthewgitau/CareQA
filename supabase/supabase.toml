@@ -1,0 +1,47 @@
+# Supabase configuration file
+# This file is used by the Supabase CLI to configure your project
+
+# Project configuration
+project_id = "your-project-ref"
+
+# Database configuration
+[db]
+  url = "postgresql://postgres:your-password@localhost:5432/postgres"
+  port = 5432
+  schema = "public"
+
+# API configuration
+[api]
+  enabled = true
+  url = "http://localhost:54321"
+  port = 54321
+
+# Storage configuration
+[storage]
+  enabled = true
+  file_size_limit = "5MB"
+  allowed_mime_types = [
+    "image/*",
+    "application/pdf", 
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ]
+
+# Auth configuration
+[auth]
+  enabled = true
+  enable_signup = true
+  enable_email_confirmed = true
+  enable_email_change = true
+  enable_password_reset = true
+  enable_email_verification = true
+  jwt_expiry = 3600
+
+# Realtime configuration
+[realtime]
+  enabled = true
+  channels = ["public"]
+
+# Extensions
+[extensions]
+  uuid-ossp = true

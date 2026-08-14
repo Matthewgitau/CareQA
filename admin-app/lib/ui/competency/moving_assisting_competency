@@ -1,0 +1,587 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/competency_assessment.dart';
+import '../../services/competency_service.dart';
+
+class MovingAssistingCompetencyForm extends StatefulWidget {
+  final String? staffId;
+  final String? staffName;
+
+  const MovingAssistingCompetencyForm({super.key, this.staffId, this.staffName});
+
+  @override
+  State<MovingAssistingCompetencyForm> createState() => _MovingAssistingCompetencyFormState();
+}
+
+class _MovingAssistingCompetencyFormState extends State<MovingAssistingCompetencyForm> {
+  final _service = CompetencyService(Supabase.instance.client);
+  final _formKey = GlobalKey<FormState>();
+  bool _isSaving = false;
+
+  // Section 1: Staff Information
+  String? _selectedStaffId;
+  String? _selectedStaffName;
+  List<Map<String, dynamic>> _staffList = [];
+  final _departmentController = TextEditingController();
+  DateTime _assessmentDate = DateTime.now();
+  String _assessorName = '';
+
+  // Section 2: Before Moving and Assisting
+  Map<String, String> _beforeMoving = {
+    'care_plan_checked': '',
+    'communication_consent': '',
+    'correct_staff_ready': '',
+    'equipment_checked': '',
+  };
+
+  // Section 3: Throughout Moving and Assisting
+  Map<String, String> _duringMoving = {
+    'independence_promoted': '',
+    'resident_comfortable': '',
+    'communication_maintained': '',
+    'privacy_dignity': '',
+  };
+
+  // Section 4: After Moving and Assisting
+  Map<String, String> _afterMoving = {
+    'equipment_stored': '',
+    'resident_comfortable': '',
+    'call_bell_reach': '',
+  };
+
+  // Section 5: Manoeuvre Observations
+  Map<String, ManoeuvreResult> _manoeuvres = {};
+
+  // Section 6: Auto-calculated decision (no manual override)
+  String _furtherTrainingNotes = '';
+
+  // Section 7: Sign-off
+  DateTime _signOffDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssessorName();
+    _loadStaff();
+    if (widget.staffId != null) {
+      _selectedStaffId = widget.staffId;
+      _selectedStaffName = widget.staffName;
+      _initializeManoeuvres();
+    }
+  }
+
+  Future<void> _loadStaff() async {
+    try {
+      final response = await _service.getAllStaff();
+      setState(() => _staffList = response);
+    } catch (e) {
+      print('Error loading staff: $e');
+    }
+  }
+
+  void _initializeManoeuvres() {
+    final manoeuvres = [
+      'rolling_in_bed',
+      'moving_up_bed',
+      'moving_forward_chair',
+      'laying_to_sitting',
+      'sit_to_laying',
+      'full_hoist_transfer',
+      'standing_hoist_transfer',
+      'sit_to_stand',
+      'stand_to_sit',
+      'standing_transfer',
+      'mobilising',
+      'full_hoist_floor',
+    ];
+
+    for (final manoeuvre in manoeuvres) {
+      _manoeuvres[manoeuvre] = ManoeuvreResult(
+        observed: false,
+        performedCorrectly: false,
+        notes: '',
+      );
+    }
+  }
+
+  Future<void> _loadAssessorName() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+        setState(() {
+          _assessorName = profile['full_name'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading assessor name: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _departmentController.dispose();
+    super.dispose();
+  }
+
+  // Auto-calculation: all critical criteria must be 'yes' or 'na'
+  bool get _isCompetent {
+    final allCriteria = [
+      ..._beforeMoving.values,
+      ..._duringMoving.values,
+      ..._afterMoving.values,
+    ];
+    // If any criteria is 'no', the staff member is not competent
+    return allCriteria.every((v) => v != 'no');
+  }
+
+  String get _autoDecision => _isCompetent ? 'Competent' : 'Not Competent';
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedStaffId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a staff member'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final isCompetent = _isCompetent;
+      final overallRating = isCompetent ? 'competent' : 'not_competent';
+
+      // Create competency ratings for each manoeuvre
+      final competencyRatings = <CompetencyRating>[];
+
+      // Add ratings for observed manoeuvres
+      for (final entry in _manoeuvres.entries) {
+        if (entry.value.observed) {
+          competencyRatings.add(CompetencyRating(
+            competencyId: entry.key,
+            competencyName: _getManoeuvreDisplayName(entry.key),
+            achievedLevel: entry.value.performedCorrectly ? 4 : 2,
+            evidence: entry.value.notes,
+            assessorNotes: entry.value.performedCorrectly ? 'Performed correctly' : 'Needs improvement',
+            assessedDate: _assessmentDate,
+          ));
+        }
+      }
+
+      // Add ratings for critical criteria
+      final criticalCriteriaRatings = [
+        {'id': 'care_plan_checked', 'name': 'Care Plan Checked', 'level': _beforeMoving['care_plan_checked'] == 'yes' ? 4 : 2},
+        {'id': 'communication_consent', 'name': 'Communication & Consent', 'level': _beforeMoving['communication_consent'] == 'yes' ? 4 : 2},
+        {'id': 'independence_promoted', 'name': 'Independence Promoted', 'level': _duringMoving['independence_promoted'] == 'yes' ? 4 : 2},
+        {'id': 'privacy_dignity', 'name': 'Privacy & Dignity', 'level': _duringMoving['privacy_dignity'] == 'yes' ? 4 : 2},
+      ];
+
+      for (final criteria in criticalCriteriaRatings) {
+        competencyRatings.add(CompetencyRating(
+          competencyId: criteria['id'] as String,
+          competencyName: criteria['name'] as String,
+          achievedLevel: criteria['level'] as int,
+          assessorNotes: criteria['level'] == 4 ? 'Passed' : 'Failed',
+          assessedDate: _assessmentDate,
+        ));
+      }
+
+      final assessment = CompetencyAssessment(
+        id: '',
+        staffId: _selectedStaffId ?? '',
+        staffName: _selectedStaffName ?? '',
+        assessorId: Supabase.instance.client.auth.currentUser?.id ?? '',
+        assessorName: _assessorName,
+        assessmentDate: _assessmentDate,
+        assessmentType: 'moving_assisting',
+        competencyRatings: competencyRatings,
+        overallRating: overallRating,
+        passed: isCompetent,
+        developmentAreas: isCompetent ? [] : ['Moving and assisting techniques'],
+        actionPlan: isCompetent ? '' : 'Additional training required',
+        nextReviewDate: DateTime.now().add(const Duration(days: 90)),
+        status: 'approved',
+        staffSignOffDate: _signOffDate,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await _service.createAssessment(assessment);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isCompetent ? 'Staff assessed as COMPETENT' : 'Staff requires further training'),
+            backgroundColor: isCompetent ? Colors.green : Colors.orange,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving assessment: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  String _getManoeuvreDisplayName(String manoeuvre) {
+    switch (manoeuvre) {
+      case 'rolling_in_bed': return 'Rolling in Bed';
+      case 'moving_up_bed': return 'Moving Up the Bed';
+      case 'moving_forward_chair': return 'Moving Forward in Chair';
+      case 'laying_to_sitting': return 'Laying to Sitting';
+      case 'sit_to_laying': return 'Sit to Laying Down';
+      case 'full_hoist_transfer': return 'Full Hoist Transfer';
+      case 'standing_hoist_transfer': return 'Standing Hoist Transfer';
+      case 'sit_to_stand': return 'Sit to Stand';
+      case 'stand_to_sit': return 'Stand to Sit';
+      case 'standing_transfer': return 'Standing Transfer';
+      case 'mobilising': return 'Mobilising';
+      case 'full_hoist_floor': return 'Full Hoist from Floor';
+      default: return manoeuvre;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Moving & Assisting Assessment'),
+        backgroundColor: const Color(0xFF1565C0),
+        foregroundColor: Colors.white,
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Section 1: Staff Information
+            _buildSectionHeader('Staff Information'),
+            DropdownButtonFormField<String>(
+              value: _selectedStaffId,
+              decoration: const InputDecoration(
+                labelText: 'Staff Name *',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('Select a staff member...')),
+                ..._staffList.map((s) => DropdownMenuItem(
+                  value: s['id'],
+                  child: Text(s['name'] ?? 'Unknown'),
+                )),
+              ],
+              onChanged: (v) {
+                setState(() {
+                  _selectedStaffId = v;
+                  final staff = _staffList.firstWhere((s) => s['id'] == v, orElse: () => {});
+                  _selectedStaffName = staff['name'] as String?;
+                  if (v != null) _initializeManoeuvres();
+                });
+              },
+              validator: (v) => v == null ? 'Required' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _departmentController,
+              decoration: const InputDecoration(
+                labelText: 'Care Home / Department *',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _assessmentDate,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) setState(() => _assessmentDate = picked);
+              },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Assessment Date *',
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(DateFormat('dd/MM/yyyy').format(_assessmentDate)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              initialValue: _assessorName,
+              decoration: const InputDecoration(
+                labelText: 'Assessor Name (from public.profiles)',
+                border: OutlineInputBorder(),
+              ),
+              enabled: false,
+            ),
+            const SizedBox(height: 24),
+
+            // Section 2: Before Moving and Assisting
+            _buildSectionHeader('Before Moving and Assisting'),
+            _buildYesNoNARow('Care plan and risk assessment checked for changes', 'care_plan_checked', _beforeMoving),
+            _buildYesNoNARow('Effective communication and consent gained', 'communication_consent', _beforeMoving),
+            _buildYesNoNARow('Correct number of staff ready', 'correct_staff_ready', _beforeMoving),
+            _buildYesNoNARow('All equipment checked', 'equipment_checked', _beforeMoving),
+            const SizedBox(height: 24),
+
+            // Section 3: Throughout Moving and Assisting
+            _buildSectionHeader('Throughout Moving and Assisting'),
+            _buildYesNoNARow("Resident's independence promoted", 'independence_promoted', _duringMoving),
+            _buildYesNoNARow('Resident comfortable and reassured', 'resident_comfortable', _duringMoving),
+            _buildYesNoNARow('Communication maintained', 'communication_maintained', _duringMoving),
+            _buildYesNoNARow('Privacy and dignity respected', 'privacy_dignity', _duringMoving),
+            const SizedBox(height: 24),
+
+            // Section 4: After Moving and Assisting
+            _buildSectionHeader('After Moving and Assisting'),
+            _buildYesNoNARow('Equipment stored safely', 'equipment_stored', _afterMoving),
+            _buildYesNoNARow('Resident comfortable with everything within reach', 'resident_comfortable', _afterMoving),
+            _buildYesNoNARow('Call bell placed within reach', 'call_bell_reach', _afterMoving),
+            const SizedBox(height: 24),
+
+            // Section 5: Manoeuvre Observations
+            _buildSectionHeader('Manoeuvre Observations'),
+            ..._buildManoeuvreSection(),
+            const SizedBox(height: 24),
+
+            // Section 6: Auto-calculated Overall Decision
+            _buildSectionHeader('Overall Competency Decision (Auto-calculated)'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _isCompetent ? Colors.green.shade50 : Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _isCompetent ? Colors.green : Colors.red),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isCompetent ? Icons.check_circle : Icons.warning,
+                    color: _isCompetent ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _isCompetent
+                          ? 'Competent - All criteria met'
+                          : 'Not Competent - Further Training Required',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _isCompetent ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!_isCompetent) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(
+                  labelText: 'Further Training Required (Notes)',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 3,
+                onChanged: (v) => _furtherTrainingNotes = v,
+              ),
+            ],
+            const SizedBox(height: 24),
+
+            // Section 7: Sign-off
+            _buildSectionHeader('Assessor Sign-off'),
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _signOffDate,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) setState(() => _signOffDate = picked);
+              },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Date *',
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(DateFormat('dd/MM/yyyy').format(_signOffDate)),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0),
+                  foregroundColor: Colors.white,
+                ),
+                child: _isSaving
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Submit Assessment', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF1565C0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildYesNoNARow(String label, String key, Map<String, String> map) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('Yes'),
+                  value: 'yes',
+                  groupValue: map[key],
+                  onChanged: (v) => setState(() => map[key] = v!),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('No'),
+                  value: 'no',
+                  groupValue: map[key],
+                  onChanged: (v) => setState(() => map[key] = v!),
+                ),
+              ),
+              Expanded(
+                child: RadioListTile<String>(
+                  title: const Text('N/A'),
+                  value: 'na',
+                  groupValue: map[key],
+                  onChanged: (v) => setState(() => map[key] = v!),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildManoeuvreSection() {
+    final manoeuvres = [
+      ('Rolling in bed', 'rolling_in_bed'),
+      ('Moving up the bed', 'moving_up_bed'),
+      ('Moving resident forward in a chair', 'moving_forward_chair'),
+      ('Laying down to sitting', 'laying_to_sitting'),
+      ('Sit to laying down', 'sit_to_laying'),
+      ('Full hoist transfer', 'full_hoist_transfer'),
+      ('Standing hoist transfer', 'standing_hoist_transfer'),
+      ('Sit to stand', 'sit_to_stand'),
+      ('Stand to sit', 'stand_to_sit'),
+      ('Standing transfer', 'standing_transfer'),
+      ('Mobilising', 'mobilising'),
+      ('Full hoist from floor (Managers only)', 'full_hoist_floor'),
+    ];
+
+    return manoeuvres.map((manoeuvre) {
+      final result = _manoeuvres[manoeuvre.$2]!;
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(manoeuvre.$1, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Observed?', style: TextStyle(fontSize: 12)),
+                  Radio<bool>(
+                    value: true,
+                    groupValue: result.observed,
+                    onChanged: (v) => setState(() => _manoeuvres[manoeuvre.$2]!.observed = v!),
+                  ),
+                  Radio<bool>(
+                    value: false,
+                    groupValue: result.observed,
+                    onChanged: (v) => setState(() => _manoeuvres[manoeuvre.$2]!.observed = v!),
+                  ),
+                ],
+              ),
+              if (result.observed) ...[
+                Row(
+                  children: [
+                    const Text('Performed correctly?', style: TextStyle(fontSize: 12)),
+                    Radio<bool>(
+                      value: true,
+                      groupValue: result.performedCorrectly,
+                      onChanged: (v) => setState(() => _manoeuvres[manoeuvre.$2]!.performedCorrectly = v!),
+                    ),
+                    Radio<bool>(
+                      value: false,
+                      groupValue: result.performedCorrectly,
+                      onChanged: (v) => setState(() => _manoeuvres[manoeuvre.$2]!.performedCorrectly = v!),
+                    ),
+                  ],
+                ),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Notes',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                  onChanged: (v) => setState(() => _manoeuvres[manoeuvre.$2]!.notes = v),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+}
+
+class ManoeuvreResult {
+  bool observed;
+  bool performedCorrectly;
+  String notes;
+
+  ManoeuvreResult({
+    required this.observed,
+    required this.performedCorrectly,
+    this.notes = '',
+  });
+}

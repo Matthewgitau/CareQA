@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Care Platform - Complete Action Specification (131 Actions)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .title h1 {
+            color: #1a1a1a;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .title p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .compliance-badge {
+            background: #ff9800;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 8px 15px;
+            border-radius: 8px;
+        }
+
+        .filter-group label {
+            color: #495057;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            cursor: pointer;
+            user-select: none;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th:hover {
+            background: #e9ecef;
+        }
+
+        th.sort-asc::after {
+            content: " ↑";
+        }
+
+        th.sort-desc::after {
+            content: " ↓";
+        }
+
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        tr.compliance-highlight {
+            background: #fff3e0;
+        }
+
+        tr.compliance-highlight:hover {
+            background: #ffe0b2;
+        }
+
+        .app-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .app-admin_app { background: #e8f5e8; color: #2e7d32; }
+        .app-client_app { background: #fff3e0; color: #f57c00; }
+
+        .screen-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #e9ecef;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+
+        .field-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-width: 250px;
+        }
+
+        .field-list li {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 2px 0;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .field-list li.required {
+            background: #ffebee;
+            color: #c62828;
+            font-weight: 600;
+        }
+
+        .api-call {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 10px;
+            margin: 2px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+        }
+
+        .business-logic-input {
+            width: 280px;
+            min-height: 80px;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            resize: vertical;
+            background: #fcfcfc;
+        }
+
+        .business-logic-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        .business-logic-input::placeholder {
+            color: #aaa;
+            font-style: italic;
+            font-size: 10px;
+        }
+
+        .code-snippet {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 10px;
+            max-width: 200px;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .footer {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .export-options {
+            display: flex;
+            gap: 10px;
+        }
+
+        .progress-bar {
+            width: 200px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            animation: slideIn 0.3s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .config-example {
+            background: #e3f2fd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #1976d2;
+            margin-top: 4px;
+            cursor: help;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">
+                <h1>
+                    📋 Care Platform Action Specification 
+                    <span class="badge">131 Actions</span>
+                </h1>
+                <p>Complete inventory from codebase • <span style="color: #ff9800;">Orange rows = Compliance critical</span></p>
+            </div>
+            <div class="controls">
+                <div class="filter-group">
+                    <label>Filter by App:</label>
+                    <select id="appFilter">
+                        <option value="all">All Apps (131)</option>
+                        <option value="admin_app">Admin App (129)</option>
+                        <option value="client_app">Client App (2)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Search:</label>
+                    <input type="text" id="searchInput" placeholder="Search actions, screens, elements...">
+                </div>
+                <div class="filter-group">
+                    <label>Show:</label>
+                    <select id="completionFilter">
+                        <option value="all">All Actions</option>
+                        <option value="pending">Business Logic Pending</option>
+                        <option value="completed">Business Logic Completed</option>
+                        <option value="compliance">Compliance Only</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <!-- Filled by JavaScript -->
+        </div>
+
+        <div class="table-container">
+            <table id="actionTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable(0)">Action ID</th>
+                        <th onclick="sortTable(1)">App</th>
+                        <th onclick="sortTable(2)">Screen</th>
+                        <th onclick="sortTable(3)">Element</th>
+                        <th>Input Fields</th>
+                        <th>Output / API Calls</th>
+                        <th>Business Logic (Data-Driven)</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Filled by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <div>
+                <span id="rowCount">0</span> actions displayed
+                <span style="margin-left: 15px; color: #666;">Progress: <span id="progressPercent">0%</span></span>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="export-options">
+                <button class="btn btn-secondary" onclick="exportJSON()">📄 Export JSON</button>
+                <button class="btn btn-secondary" onclick="exportCSV()">📊 Export CSV</button>
+                <button class="btn btn-primary" onclick="saveProgress()">💾 Save Progress</button>
+                <button class="btn btn-secondary" onclick="resetFilters()">🔄 Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Complete actions array with all 131 items
+        const actions = [
+            // Medication Form (3)
+            {
+                "action_id": "MEDICATION_UPLOAD_BUTTON",
+                "trigger_location": { "app": "admin_app", "screen": "medication form", "element": "Upload button", "full_path": "medication-form-logic.js" },
+                "input_data": { "fields_detected": ["carerName", "formDate", "formFile"], "required_fields": ["formFile"], "forms_associated": "medication form", "data_bindings": "Firebase Firestore and Storage" },
+                "output": { "api_calls": ["firebase-firestore.js", "firebase-storage.js"], "navigation": "form table refresh", "state_changes": "form table updated, input fields cleared" },
+                "raw_code_snippet": "uploadButton.addEventListener('click', addForm);",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_ADD_FORM",
+                "trigger_location": { "app": "admin_app", "screen": "medication form", "element": "Add form function", "full_path": "medication-form-logic.js" },
+                "input_data": { "fields_detected": ["carerName", "formDate", "formFile"], "required_fields": ["carerName", "formDate", "formFile"], "forms_associated": "medication form", "data_bindings": "Firebase Firestore and Storage" },
+                "output": { "api_calls": ["firebase-firestore.js", "firebase-storage.js"], "navigation": "form table refresh", "state_changes": "form data added to Firestore, file uploaded to Storage" },
+                "raw_code_snippet": "async function addForm() { ... }",
+                "compliance": true
+            },
+            {
+                "action_id": "MEDICATION_RENDER_FORMS",
+                "trigger_location": { "app": "admin_app", "screen": "medication form", "element": "Render forms function", "full_path": "medication-form-logic.js" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "medication form", "data_bindings": "Firebase Firestore" },
+                "output": { "api_calls": ["firebase-firestore.js"], "navigation": "form table display", "state_changes": "form table populated with data" },
+                "raw_code_snippet": "async function renderForms() { ... }",
+                "compliance": false
+            },
+            
+            // Client App (4)
+            {
+                "action_id": "CLIENT_LOGOUT",
+                "trigger_location": { "app": "client_app", "screen": "home", "element": "Log Out button", "full_path": "index.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "login form", "data_bindings": "session management" },
+                "output": { "api_calls": [], "navigation": "login.html", "state_changes": "user logged out" },
+                "raw_code_snippet": "<a href=\"login.html\" class=\"logout-button\">Log Out</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CLIENT_NAV_DOM_CARE",
+                "trigger_location": { "app": "client_app", "screen": "home", "element": "Dom Care button", "full_path": "index.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Dashboard.html\" class=\"large-button\">Dom Care</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CLIENT_NAV_AGENCY",
+                "trigger_location": { "app": "client_app", "screen": "home", "element": "Agency button", "full_path": "index.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dashboard.html\" class=\"large-button\">Agency</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CLIENT_NAV_ADMIN",
+                "trigger_location": { "app": "client_app", "screen": "home", "element": "Admin button", "full_path": "index.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin panel.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Admin panel.html\" class=\"large-button\">Admin</a>",
+                "compliance": false
+            },
+            
+            // Admin Panel Navigation (18)
+            {
+                "action_id": "ADMIN_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Home button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_TOGGLE_DROPDOWN",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Dashboard dropdown", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "dropdown menu display", "state_changes": "dropdown menu appears" },
+                "raw_code_snippet": "<a href=\"Dom care Dashboard.html\">Dashboard ▼</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Finance link", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Schedule link", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_ADMIN",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Admin link", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin panel.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Admin panel.html\">Admin</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Logout link", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Logout</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_COMPETENCY",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Competency dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Compentancy.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Compentancy.html')\">Competency dashboard</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAV_ANALYSIS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Analysis button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "analysis.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('analysis.html')\">Analysis</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_NOTIFICATIONS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Notification Hub button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin Notifications.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Admin Notifications.html')\">Notification Hub</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_ACTION_PLANS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Action Plan Dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Action_plans.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('action_plans.html')\">Action Plan Dashboard</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAV_WHISTLEBLOWER",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Whistleblower Inbox button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "whistle blower.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('whistle blower.html')\">Whistleblower Inbox</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAV_CARER_INBOX",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Carer Inbox button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Carer_Inbox.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Carer_Inbox.html')\">Carer Inbox</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_RISK_ASSESSMENTS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Risk Assessments Dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "risk_assessments.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('risk_assessments.html')\">Risk Assessments Dashboard</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAV_PROFIT_TRACKER",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Profit Tracker button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Profit Calculator.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Profit Calculator.html')\">Profit Tracker</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_RECORDINGS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Recordings Dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Recordings_Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Recordings_Dashboard.html')\">Recordings Dashboard</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_MATRIX",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Matrix Dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Matrix Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('Matrix Dashboard.html')\">Matrix Dashboard</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAV_GRAB_SHEETS",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Grab Sheets button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "grabsheet.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('grabsheet.html')\">Grab Sheets</div>",
+                "compliance": false
+            },
+            {
+                "action_id": "ADMIN_NAV_AUDIT",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "Audit Dashboard button", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "audit.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<div class=\"dashboard-pad\" onclick=\"navigateTo('audit.html')\">Audit Dashboard</div>",
+                "compliance": true
+            },
+            {
+                "action_id": "ADMIN_NAVIGATE_FUNCTION",
+                "trigger_location": { "app": "admin_app", "screen": "admin panel", "element": "navigateTo function", "full_path": "Admin panel.html" },
+                "input_data": { "fields_detected": ["page"], "required_fields": ["page"], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "page navigation", "state_changes": "window location changed" },
+                "raw_code_snippet": "function navigateTo(page) { window.location.href = page; }",
+                "compliance": false
+            },
+            
+            // Medication Page (8)
+            {
+                "action_id": "MEDICATION_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Home link", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Dashboard link", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_NAV_ADMIN",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Admin link", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin panel.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Admin panel.html\">Admin</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Schedule link", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Logout link", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Logout</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_SUBMIT_ASSESSMENT",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "Submit Assessment button", "full_path": "medication.html" },
+                "input_data": { "fields_detected": ["assessmentDate", "serviceUser", "completedBy"], "required_fields": ["assessmentDate", "serviceUser", "completedBy"], "forms_associated": "medication risk assessment", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "assessment submitted", "state_changes": "alert displayed" },
+                "raw_code_snippet": "<button onclick=\"submitAssessment()\">Submit Assessment</button>",
+                "compliance": true
+            },
+            {
+                "action_id": "MEDICATION_LOAD_RISK_TABLE",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "loadRiskTable function", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "risk table loaded", "state_changes": "table populated with risk items" },
+                "raw_code_snippet": "function loadRiskTable() { ... }",
+                "compliance": false
+            },
+            {
+                "action_id": "MEDICATION_SUBMIT_ASSESSMENT_FUNC",
+                "trigger_location": { "app": "admin_app", "screen": "medication", "element": "submitAssessment function", "full_path": "medication.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "assessment submitted", "state_changes": "alert displayed" },
+                "raw_code_snippet": "function submitAssessment() { alert(\"Medication Risk Assessment submitted successfully!\"); }",
+                "compliance": false
+            },
+            
+            // Dom Care Dashboard (9)
+            {
+                "action_id": "DOM_DASH_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Home button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "DOM_DASH_MATRIX",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Matrix link", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Matrix Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Matrix Dashboard.html\">Matrix</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "DOM_DASH_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Finance link", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "DOM_DASH_SERVICE_USER",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Service User link", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Service users.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Service users.html\">Service User</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "DOM_DASH_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Schedule link", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "DOM_DASH_ADD_CARER",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Add New Carer button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "add_new_carer.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"add_new_carer.html\" class=\"dashboard-option\">Add New Carer</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "DOM_DASH_ADD_SERVICE_USER",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Add Service User button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Service users.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Service users.html\" class=\"dashboard-option\">Add Service User</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "DOM_DASH_ADD_CAR",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Add New Car button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Add new car.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Add new car.html\" class=\"dashboard-option\">Add New Car</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "DOM_DASH_VEHICLES",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Vehicles button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Listed Cars.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Listed Cars.html\" class=\"dashboard-option\">Vehicles</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "DOM_DASH_DAILY_NOTES",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Daily Notes button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "view Dnotes.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"view Dnotes.html\" class=\"dashboard-option\">Daily Notes</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "DOM_DASH_EDIT_ROUTE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care dashboard", "element": "Edit Route button", "full_path": "Dom care Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "edit route.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"edit route.html\" class=\"dashboard-option\">Edit Route</a>",
+                "compliance": false
+            },
+            
+            // Add New Carer (5 actions + compliance fields)
+            {
+                "action_id": "CARER_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Home button", "full_path": "add_new_carer.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CARER_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Dashboard link", "full_path": "add_new_carer.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CARER_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Finance link", "full_path": "add_new_carer.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CARER_NAV_BOOKING",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Booking link", "full_path": "add_new_carer.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Shift_overview.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Shift_overview.html\">Booking</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CARER_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Log Out link", "full_path": "add_new_carer.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\" class=\"logout-button\">Log Out</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "CARER_ADD_SUBMIT",
+                "trigger_location": { "app": "admin_app", "screen": "add new carer", "element": "Add Carer form", "full_path": "add_new_carer.html" },
+                "input_data": { 
+                    "fields_detected": ["name", "email", "contact_number", "photo", "proof_id", "proof_id_expiry", "proof_residence", "proof_residence_expiry", "dbs_number", "dbs_expiry", "infection_control", "infection_control_expiry", "manual_handling", "manual_handling_expiry", "safeguarding", "safeguarding_expiry", "fitness_to_work_expiry", "fitness_to_work_status", "sort_code", "account_number"],
+                    "required_fields": ["name", "email", "proof_id", "dbs_number", "dbs_expiry"],
+                    "forms_associated": "add_new_carer",
+                    "data_bindings": ""
+                },
+                "output": { "api_calls": [], "navigation": "carer added", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('add_new_carer') }}\" method=\"POST\" enctype=\"multipart/form-data\">",
+                "compliance": true
+            },
+            
+            // Generate Invoice (9)
+            {
+                "action_id": "INVOICE_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Home button", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INVOICE_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Dashboard link", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INVOICE_NAV_MATRIX",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Matrix link", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Matrix Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Matrix Dashboard.html\">Matrix</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "INVOICE_NAV_BOOKING",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Booking link", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Shift_overview.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Shift_overview.html\">Booking</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INVOICE_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Log Out link", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Log Out</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INVOICE_GEN_CAREHOME",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Carehome Invoice Generator form", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": ["care_home_id", "start_date", "end_date"], "required_fields": ["care_home_id", "start_date", "end_date"], "forms_associated": "generate_invoice", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "invoice generated", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('generate_invoice') }}\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "INVOICE_GEN_SERVICE_USER",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Service user Invoice Generator form", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": ["Service_User", "start_date", "end_date"], "required_fields": ["Service_User", "start_date", "end_date"], "forms_associated": "generate_invoice_Client", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "invoice generated", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{url_for('generate_invoice_Client')}}\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "INVOICE_PAY_RATES",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Pay Rate Management form", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": ["default_rate", "carers", "pay_rate"], "required_fields": ["default_rate"], "forms_associated": "update_pay_rates", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "pay rates updated", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('update_pay_rates') }}\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "INVOICE_MILLAGE",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Millage Calculator form", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": ["Driver", "start_date", "end_date"], "required_fields": ["Driver", "start_date", "end_date"], "forms_associated": "calculate_millage", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "millage calculated", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"URl input from backend point\" method=\"aria-posinset=\"",
+                "compliance": false
+            },
+            {
+                "action_id": "INVOICE_PAYROLL_REPORT",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "Carer Payroll Report form", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": ["report_start", "report_end"], "required_fields": ["report_start", "report_end"], "forms_associated": "generate_report", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "report generated", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('generate_report') }}\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "INVOICE_FILTER_CARERS",
+                "trigger_location": { "app": "admin_app", "screen": "generate invoice", "element": "filterCarers function", "full_path": "Generate_Invoice.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "carers filtered", "state_changes": "carer list updated" },
+                "raw_code_snippet": "function filterCarers() { ... }",
+                "compliance": false
+            },
+            
+            // Carer Inbox (6)
+            {
+                "action_id": "INBOX_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "Home link", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "Dashboard link", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_NAV_ADMIN",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "Admin link", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin panel.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Admin panel.html\">Admin</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "Schedule link", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "Logout link", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Logout</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_RENDER_MESSAGES",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "renderMessages function", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "messages rendered", "state_changes": "message list updated" },
+                "raw_code_snippet": "function renderMessages() { ... }",
+                "compliance": false
+            },
+            {
+                "action_id": "INBOX_MARK_READ",
+                "trigger_location": { "app": "admin_app", "screen": "carer inbox", "element": "markAsRead function", "full_path": "Carer_Inbox.html" },
+                "input_data": { "fields_detected": ["id"], "required_fields": ["id"], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "message marked as read", "state_changes": "message list updated" },
+                "raw_code_snippet": "function markAsRead(id) { ... }",
+                "compliance": false
+            },
+            
+            // Service Users (5)
+            {
+                "action_id": "SU_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Home button", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SU_NAV_MATRIX",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Matrix link", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Matrix Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Matrix Dashboard.html\">Matrix</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "SU_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Finance link", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SU_NAV_SERVICE_USER",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Service User link", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Service users.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Service users.html\">Service User</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "SU_NAV_ROUTE",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "View Route link", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">View Route</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SU_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Schedule link", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Shift_overview.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Shift_overview.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SU_SUBMIT_FORM",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "Submit form", "full_path": "Service users.html" },
+                "input_data": { 
+                    "fields_detected": ["name", "next_of_kin", "careplan", "risk_assessment", "daily_notes", "medical_history", "mar_chart", "document_type", "document_upload"],
+                    "required_fields": ["name", "careplan"],
+                    "forms_associated": "submit_service_user",
+                    "data_bindings": ""
+                },
+                "output": { "api_calls": [], "navigation": "form submitted", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('submit_service_user') }}\" method=\"POST\" enctype=\"multipart/form-data\">",
+                "compliance": true
+            },
+            {
+                "action_id": "SU_TOGGLE_RISK",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "toggleRiskAssessmentOptions function", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "risk assessment options toggled", "state_changes": "file upload or survey link displayed" },
+                "raw_code_snippet": "function toggleRiskAssessmentOptions() { ... }",
+                "compliance": false
+            },
+            {
+                "action_id": "SU_TOGGLE_INPUT",
+                "trigger_location": { "app": "admin_app", "screen": "service users", "element": "toggleInput function", "full_path": "Service users.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "input toggled", "state_changes": "input field displayed or hidden" },
+                "raw_code_snippet": "function toggleInput() { ... }",
+                "compliance": false
+            },
+            
+            // Dom Care Rota Page (7)
+            {
+                "action_id": "ROTA_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Home button", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Dashboard link", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Finance link", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Schedule link", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Logout link", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Logout</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_PREV_WEEK",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Previous Week button", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "previous week displayed", "state_changes": "week updated" },
+                "raw_code_snippet": "<button id=\"prev-week\">Previous Week</button>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_NEXT_WEEK",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Next Week button", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "next week displayed", "state_changes": "week updated" },
+                "raw_code_snippet": "<button id=\"next-week\">Next Week</button>",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_CELL_CLICK",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Rota cell click", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "modal displayed", "state_changes": "modal opened" },
+                "raw_code_snippet": "document.querySelectorAll(\".rota-cell\").forEach(cell => { cell.addEventListener(\"click\", () => { modal.classList.add(\"active\"); overlay.classList.add(\"active\"); }); });",
+                "compliance": true
+            },
+            {
+                "action_id": "ROTA_SAVE",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "Save button", "full_path": "Dom care Rota Page.html" },
+                "input_data": { 
+                    "fields_detected": ["serviceUser", "morningStart", "morningEnd", "morningCarer", "lunchStart", "lunchEnd", "lunchCarer", "teaStart", "teaEnd", "teaCarer", "eveningStart", "eveningEnd", "eveningCarer"],
+                    "required_fields": ["serviceUser"],
+                    "forms_associated": "",
+                    "data_bindings": ""
+                },
+                "output": { "api_calls": [], "navigation": "times updated", "state_changes": "rota updated" },
+                "raw_code_snippet": "saveBtn.addEventListener(\"click\", () => { ... });",
+                "compliance": true
+            },
+            {
+                "action_id": "ROTA_UPDATE_WEEK",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "updateWeekDisplay function", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "week display updated", "state_changes": "week display updated" },
+                "raw_code_snippet": "function updateWeekDisplay() { ... }",
+                "compliance": false
+            },
+            {
+                "action_id": "ROTA_CREATE_BLOCK",
+                "trigger_location": { "app": "admin_app", "screen": "dom care rota page", "element": "createBlock function", "full_path": "Dom care Rota Page.html" },
+                "input_data": { "fields_detected": ["timeId", "carer", "start", "end"], "required_fields": ["timeId", "carer", "start", "end"], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "block created", "state_changes": "block added to rota" },
+                "raw_code_snippet": "const createBlock = (timeId, carer, start, end) => { ... }",
+                "compliance": false
+            },
+            
+            // Shift Overview (5)
+            {
+                "action_id": "SHIFT_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Home button", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"back-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SHIFT_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Dashboard link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SHIFT_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Finance link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SHIFT_NAV_BOOKING",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Booking link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Shift_overview.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Shift_overview.html\">Booking</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SHIFT_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Log Out link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Log Out</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "SHIFT_CONFIRM",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Confirm link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "shift confirmed", "state_changes": "shift status updated" },
+                "raw_code_snippet": "<a href=\"{{ url_for('confirm_shift', id=shift.id) }}\">Confirm</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "SHIFT_CANCEL",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Cancelled link", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "shift cancelled", "state_changes": "shift status updated" },
+                "raw_code_snippet": "<a href=\"{{ url_for('cancel_shift', id=shift.id) }}\">Cancelled</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "SHIFT_HOVER",
+                "trigger_location": { "app": "admin_app", "screen": "shift overview", "element": "Shift type hover", "full_path": "Shift_overview.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "shift time displayed", "state_changes": "tooltip displayed" },
+                "raw_code_snippet": "td.shift-type:hover::before { content: attr(data-start) \" - \" attr(data-end); opacity: 1; visibility: visible; }",
+                "compliance": false
+            },
+            
+            // Login (3)
+            {
+                "action_id": "LOGIN_FORM",
+                "trigger_location": { "app": "admin_app", "screen": "login", "element": "Login form", "full_path": "Login.html" },
+                "input_data": { "fields_detected": ["email_or_username", "password"], "required_fields": ["email_or_username", "password"], "forms_associated": "login", "data_bindings": "Firebase Authentication" },
+                "output": { "api_calls": ["firebase-app.js", "firebase-auth.js"], "navigation": "dashboard", "state_changes": "user authenticated" },
+                "raw_code_snippet": "<form action=\"index.html\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "LOGIN_SIGNUP_LINK",
+                "trigger_location": { "app": "admin_app", "screen": "login", "element": "Sign Up link", "full_path": "Login.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Sign up page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Sign up page.html\" class=\"sign-up-link\">Sign Up</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "LOGIN_SUBMIT",
+                "trigger_location": { "app": "admin_app", "screen": "login", "element": "Login form submit event", "full_path": "Login.html" },
+                "input_data": { "fields_detected": ["email", "password"], "required_fields": ["email", "password"], "forms_associated": "login", "data_bindings": "Firebase Authentication" },
+                "output": { "api_calls": ["firebase-auth.js"], "navigation": "dashboard", "state_changes": "user authenticated" },
+                "raw_code_snippet": "form.addEventListener('submit', async (e) => { ... });",
+                "compliance": true
+            },
+            {
+                "action_id": "LOGIN_DOM_LOADED",
+                "trigger_location": { "app": "admin_app", "screen": "login", "element": "DOMContentLoaded event", "full_path": "Login.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "Firebase Authentication" },
+                "output": { "api_calls": [], "navigation": "event listeners attached", "state_changes": "form ready for interaction" },
+                "raw_code_snippet": "document.addEventListener('DOMContentLoaded', () => { ... });",
+                "compliance": false
+            },
+            
+            // Sign Up (2)
+            {
+                "action_id": "SIGNUP_FORM",
+                "trigger_location": { "app": "admin_app", "screen": "sign up", "element": "Sign Up form", "full_path": "Sign up page.html" },
+                "input_data": { "fields_detected": ["name", "username", "email", "password", "confirm_password"], "required_fields": ["name", "email", "password", "confirm_password"], "forms_associated": "signup", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "form submitted", "state_changes": "form submitted" },
+                "raw_code_snippet": "<form action=\"{{ url_for('signup') }}\" method=\"POST\">",
+                "compliance": true
+            },
+            {
+                "action_id": "SIGNUP_LOGIN_LINK",
+                "trigger_location": { "app": "admin_app", "screen": "sign up", "element": "Login link", "full_path": "Sign up page.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\" class=\"login-link\">Login</a>",
+                "compliance": false
+            },
+            
+            // Matrix Dashboard (6)
+            {
+                "action_id": "MATRIX_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Home button", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MATRIX_NAV_DASHBOARD",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Dashboard link", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dashboard.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dashboard.html\">Dashboard</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MATRIX_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Finance link", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Generate_Invoice.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Generate_Invoice.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MATRIX_NAV_ADMIN",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Admin link", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Admin panel.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Admin panel.html\">Admin</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MATRIX_LOGOUT",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Logout link", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Login.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Login.html\">Logout</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "MATRIX_TRAINING",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Training button", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Training matrix.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<button class=\"matrix-btn\" onclick=\"navigateTo('Training matrix.html')\">Training</button>",
+                "compliance": true
+            },
+            {
+                "action_id": "MATRIX_SUPERVISION",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Supervision button", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Supervision_matrix.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<button class=\"matrix-btn\" onclick=\"navigateTo('Supervision_matrix.html')\">Supervision</button>",
+                "compliance": true
+            },
+            {
+                "action_id": "MATRIX_APPRAISAL",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Appraisal button", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "update page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<button class=\"matrix-btn\" onclick=\"navigateTo('update page.html')\">Appraisal</button>",
+                "compliance": true
+            },
+            {
+                "action_id": "MATRIX_EQUIPMENT",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "Equipment Matrix button", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "update page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<button class=\"matrix-btn\" onclick=\"navigateTo('update page.html')\">Equipment Matrix</button>",
+                "compliance": true
+            },
+            {
+                "action_id": "MATRIX_NAVIGATE",
+                "trigger_location": { "app": "admin_app", "screen": "matrix dashboard", "element": "navigateTo function", "full_path": "Matrix Dashboard.html" },
+                "input_data": { "fields_detected": ["page"], "required_fields": ["page"], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "page navigation", "state_changes": "window location changed" },
+                "raw_code_snippet": "function navigateTo(page) { window.location.href = page; }",
+                "compliance": false
+            },
+            
+            // Training Matrix (5)
+            {
+                "action_id": "TRAINING_NAV_HOME",
+                "trigger_location": { "app": "admin_app", "screen": "training matrix", "element": "Home button", "full_path": "Training Matrix.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "index.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"index.html\" class=\"home-button\">Home</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "TRAINING_NAV_MATRIX",
+                "trigger_location": { "app": "admin_app", "screen": "training matrix", "element": "Matrix link", "full_path": "Training Matrix.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Training Matrix.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Training Matrix.html\">Matrix</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "TRAINING_NAV_FINANCE",
+                "trigger_location": { "app": "admin_app", "screen": "training matrix", "element": "Finance link", "full_path": "Training Matrix.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Finance Dom Care page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Finance Dom Care page.html\">Finance</a>",
+                "compliance": false
+            },
+            {
+                "action_id": "TRAINING_NAV_SERVICE_USER",
+                "trigger_location": { "app": "admin_app", "screen": "training matrix", "element": "Service User link", "full_path": "Training Matrix.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Service users.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Service users.html\">Service User</a>",
+                "compliance": true
+            },
+            {
+                "action_id": "TRAINING_NAV_SCHEDULE",
+                "trigger_location": { "app": "admin_app", "screen": "training matrix", "element": "Schedule link", "full_path": "Training Matrix.html" },
+                "input_data": { "fields_detected": [], "required_fields": [], "forms_associated": "", "data_bindings": "" },
+                "output": { "api_calls": [], "navigation": "Dom care Rota Page.html", "state_changes": "page navigation" },
+                "raw_code_snippet": "<a href=\"Dom care Rota Page.html\">Schedule</a>",
+                "compliance": false
+            }
+        ];
+
+        // Initialize table
+        function renderTable() {
+            const appFilter = document.getElementById('appFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const completionFilter = document.getElementById('completionFilter').value;
+            
+            let filteredActions = actions;
+            
+            // Apply app filter
+            if (appFilter !== 'all') {
+                filteredActions = filteredActions.filter(a => a.trigger_location.app === appFilter);
+            }
+            
+            // Apply search
+            if (searchTerm) {
+                filteredActions = filteredActions.filter(a => 
+                    a.action_id.toLowerCase().includes(searchTerm) ||
+                    a.trigger_location.screen.toLowerCase().includes(searchTerm) ||
+                    a.trigger_location.element.toLowerCase().includes(searchTerm) ||
+                    (a.trigger_location.full_path && a.trigger_location.full_path.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            // Apply completion filter
+            if (completionFilter === 'compliance') {
+                filteredActions = filteredActions.filter(a => a.compliance === true);
+            }
+            
+            // Update stats
+            const completedCount = actions.filter(a => a.business_logic && a.business_logic.trim() !== '').length;
+            const complianceCount = actions.filter(a => a.compliance === true).length;
+            
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-value">${actions.length}</div>
+                    <div class="stat-label">Total Actions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${filteredActions.length}</div>
+                    <div class="stat-label">Displayed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${complianceCount}</div>
+                    <div class="stat-label">Compliance Critical</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${completedCount}</div>
+                    <div class="stat-label">Logic Completed</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${Math.round(completedCount/actions.length*100)}%</div>
+                    <div class="stat-label">Progress</div>
+                </div>
+            `;
+            
+            // Update progress bar
+            const progressPercent = Math.round(completedCount/actions.length*100);
+            document.getElementById('progressPercent').textContent = progressPercent + '%';
+            document.getElementById('progressFill').style.width = progressPercent + '%';
+            
+            // Build table HTML
+            let html = '';
+            filteredActions.forEach((action, index) => {
+                const appClass = `app-badge app-${action.trigger_location.app}`;
+                const complianceClass = action.compliance ? 'compliance-highlight' : '';
+                
+                // Format fields list
+                const fieldsList = action.input_data.fields_detected && action.input_data.fields_detected.length > 0 
+                    ? action.input_data.fields_detected.map(f => {
+                        const isRequired = action.input_data.required_fields && action.input_data.required_fields.includes(f);
+                        return `<li class="${isRequired ? 'required' : ''}" title="${isRequired ? 'Required' : 'Optional'}">${f}</li>`;
+                    }).join('')
+                    : '<li style="color:#999;">None</li>';
+                
+                // Format API calls
+                const apiCalls = action.output.api_calls && action.output.api_calls.length > 0
+                    ? action.output.api_calls.map(call => `<div class="api-call" title="${call}">${call}</div>`).join('')
+                    : '<span style="color:#999;">None</span>';
+                
+                // Load saved business logic
+                const savedLogic = localStorage.getItem(`logic_${action.action_id}`) || '';
+                
+                html += `
+                    <tr class="${complianceClass}">
+                        <td><strong>${action.action_id}</strong></td>
+                        <td><span class="${appClass}">${action.trigger_location.app}</span></td>
+                        <td><span class="screen-badge">${action.trigger_location.screen}</span></td>
+                        <td>${action.trigger_location.element}</td>
+                        <td><ul class="field-list">${fieldsList}</ul></td>
+                        <td>
+                            <div><strong>Nav:</strong> ${action.output.navigation}</div>
+                            <div style="margin-top:4px;">${apiCalls}</div>
+                        </td>
+                        <td>
+                            <textarea 
+                                class="business-logic-input" 
+                                placeholder="RULE: rule_name
+CONDITION: field > threshold
+IF TRUE: action + notify
+IF FALSE: alternative
+SOURCE: settings.area.setting_name"
+                                onchange="saveLogic('${action.action_id}', this.value)"
+                            >${savedLogic}</textarea>
+                            ${action.compliance ? '<div class="config-example" title="Compliance critical - requires configuration">⚠️ Needs config</div>' : ''}
+                        </td>
+                        <td><span class="code-snippet" title="${action.trigger_location.full_path}">${action.trigger_location.full_path}</span></td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('tableBody').innerHTML = html;
+            document.getElementById('rowCount').textContent = filteredActions.length;
+        }
+
+        // Save business logic to localStorage
+        function saveLogic(actionId, value) {
+            localStorage.setItem(`logic_${actionId}`, value);
+            showToast(`Saved: ${actionId}`);
+            renderTable(); // Refresh to update progress
+        }
+
+        // Show toast message
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // Save all progress to JSON file
+        function saveProgress() {
+            const allLogic = {};
+            actions.forEach(action => {
+                const saved = localStorage.getItem(`logic_${action.action_id}`);
+                if (saved) allLogic[action.action_id] = saved;
+            });
+            
+            const dataStr = JSON.stringify(allLogic, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'business-logic-export.json';
+            a.click();
+            showToast('Progress saved!');
+        }
+
+        // Export to JSON
+        function exportJSON() {
+            const exportData = actions.map(action => ({
+                ...action,
+                business_logic: localStorage.getItem(`logic_${action.action_id}`) || ''
+            }));
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'action-spec-complete.json';
+            a.click();
+            showToast('Exported to JSON');
+        }
+
+        // Export to CSV
+        function exportCSV() {
+            const headers = ['Action ID', 'App', 'Screen', 'Element', 'Fields', 'Navigation', 'API Calls', 'Business Logic', 'Source'];
+            const rows = actions.map(action => [
+                action.action_id,
+                action.trigger_location.app,
+                action.trigger_location.screen,
+                action.trigger_location.element,
+                (action.input_data.fields_detected || []).join('; '),
+                action.output.navigation,
+                (action.output.api_calls || []).join('; '),
+                (localStorage.getItem(`logic_${action.action_id}`) || '').replace(/\n/g, ' '),
+                action.trigger_location.full_path
+            ]);
+            
+            const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'action-spec.csv';
+            a.click();
+            showToast('Exported to CSV');
+        }
+
+        // Sorting
+        let sortColumn = 0;
+        let sortDirection = 'asc';
+
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('th').forEach((th, i) => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (i === sortColumn) {
+                    th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+            
+            // Sort the actions array
+            actions.sort((a, b) => {
+                let aVal, bVal;
+                switch(column) {
+                    case 0: aVal = a.action_id; bVal = b.action_id; break;
+                    case 1: aVal = a.trigger_location.app; bVal = b.trigger_location.app; break;
+                    case 2: aVal = a.trigger_location.screen; bVal = b.trigger_location.screen; break;
+                    case 3: aVal = a.trigger_location.element; bVal = b.trigger_location.element; break;
+                    default: return 0;
+                }
+                
+                if (sortDirection === 'asc') {
+                    return aVal.localeCompare(bVal);
+                } else {
+                    return bVal.localeCompare(aVal);
+                }
+            });
+            
+            renderTable();
+        }
+
+        // Reset filters
+        function resetFilters() {
+            document.getElementById('appFilter').value = 'all';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('completionFilter').value = 'all';
+            renderTable();
+        }
+
+        // Event listeners
+        document.getElementById('appFilter').addEventListener('change', renderTable);
+        document.getElementById('searchInput').addEventListener('input', renderTable);
+        document.getElementById('completionFilter').addEventListener('change', renderTable);
+
+        // Initial render
+        renderTable();
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+name: api_client
+description: API client package for the CareQA platform with HTTP client, interceptors, and service classes
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.3.0
+  retrofit: ^4.0.0
+  logger: ^2.0.0
+  shared_preferences: ^2.2.0
+  core:
+    path: ../core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  retrofit_generator: ^7.0.0
+  build_runner: ^2.4.0
+
+flutter:
+  uses-material-design: true
