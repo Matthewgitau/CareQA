@@ -104,6 +104,7 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
   _Period? _prevPeriod;
   bool _compare = false;
   _PnLData _data = _PnLData();
+  Set<String> _processedStaffIds = {}; // avoids double-counting wages
 
   @override
   void initState() {
@@ -134,63 +135,143 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
       final s = _period.start.toIso8601String().split('T')[0];
       final e = _period.end.toIso8601String().split('T')[0];
 
-      // Revenue from visits (Dom Care)
-      final visits = await _supabase.from('visits')
-          .select('billing_amount')
-          .gte('visit_date', s)
-          .lte('visit_date', e);
-      final visitList = visits as List;
-      final revenueDomCare = visitList.fold<num>(0, (s, v) => s + ((v['billing_amount'] as num?) ?? 0)).toDouble();
-      final domCareCount = visitList.length;
-
-      // Revenue from agency shifts
-      final shifts = await _supabase.from('shifts')
-          .select('agency_billing_rate')
-          .gte('shift_date', s)
-          .lte('shift_date', e)
-          .not('agency_client_id', 'is', null);
-      final shiftList = shifts as List;
-      final revenueAgency = shiftList.fold<num>(0, (s, v) => s + ((v['agency_billing_rate'] as num?) ?? 0)).toDouble();
+      // ── REVENUE: from paid invoices ──
+      double revenueDomCare = 0;
+      int domCareCount = 0;
+      // Completed shifts (Dom Care visits billed as work)
+      try {
+        final shifts = await _supabase.from('shifts')
+            .select('start_time, end_time')
+            .eq('status', 'completed')
+            .gte('scheduled_date', s)
+            .lte('scheduled_date', e);
+        for (final sh in (shifts as List).cast<Map<String, dynamic>>()) {
+          revenueDomCare += _shiftHours(sh['start_time'] ?? '', sh['end_time'] ?? '') * 20.0;
+          domCareCount++;
+        }
+      } catch (_) {}
+      // Route visits
+      try {
+        final rv = await _supabase.from('route_visits')
+            .select('duration_minutes').gte('visit_date', s).lte('visit_date', e);
+        for (final v in (rv as List).cast<Map<String, dynamic>>()) {
+          final mins = (v['duration_minutes'] as num?)?.toDouble() ?? 60.0;
+          revenueDomCare += (mins / 60.0) * 20.0;
+          domCareCount++;
+        }
+      } catch (_) {}
+      // Paid invoices in this period
+      double revenueAgency = 0;
+      try {
+        final inv = await _supabase.from('invoices')
+            .select('total_amount').eq('status', 'paid')
+            .gte('period_end', s).lte('period_end', e);
+        for (final i in (inv as List)) {
+          revenueAgency += ((i['total_amount'] as num?)?.toDouble() ?? 0);
+        }
+      } catch (_) {}
 
       // Expenses from receipts
-      final receipts = await _supabase.from('receipt_entries')
-          .select('total_amount, expense_category, merchant_name, receipt_date, status, notes')
-          .gte('receipt_date', s)
-          .lte('receipt_date', e)
-          .eq('is_revenue', false);
-      final receiptList = receipts as List;
       final expByCat = <String, double>{};
       double totalExp = 0;
-      for (final r in receiptList) {
-        final amt = (r['total_amount'] as num?)?.toDouble() ?? 0;
-        totalExp += amt;
-        final cat = r['expense_category'] as String? ?? 'other';
-        expByCat[cat] = (expByCat[cat] ?? 0) + amt;
-      }
+      try {
+        final receipts = await _supabase.from('receipt_entries')
+            .select('total_amount, expense_category')
+            .gte('receipt_date', s).lte('receipt_date', e);
+        for (final r in (receipts as List).cast<Map<String, dynamic>>()) {
+          final amt = (r['total_amount'] as num?)?.toDouble() ?? 0;
+          totalExp += amt;
+          final cat = r['expense_category'] as String? ?? 'other';
+          expByCat[cat] = (expByCat[cat] ?? 0) + amt;
+        }
+      } catch (_) {}
+      try {
+        final pay = await _supabase.from('payroll_history')
+            .select('staff_id, regular_pay, overtime_pay, holiday_pay, sick_pay, bonus_pay, deductions, period_start')
+            .gte('period_start', s).lte('period_end', e);
+        double payFromPayroll = 0;
+        final paidStaffIds = <String>{};
+        for (final p in (pay as List).cast<Map<String, dynamic>>()) {
+          final rp = (p['regular_pay'] as num?)?.toDouble() ?? 0;
+          final op = (p['overtime_pay'] as num?)?.toDouble() ?? 0;
+          final hp = (p['holiday_pay'] as num?)?.toDouble() ?? 0;
+          final sp = (p['sick_pay'] as num?)?.toDouble() ?? 0;
+          final bp = (p['bonus_pay'] as num?)?.toDouble() ?? 0;
+          final ded = (p['deductions'] as num?)?.toDouble() ?? 0;
+          final total = rp + op + hp + sp + bp - ded;
+          payFromPayroll += total;
+          final sid = p['staff_id'] as String?;
+          if (sid != null) paidStaffIds.add(sid);
+        }
+        totalExp += payFromPayroll;
+        expByCat['wages'] = (expByCat['wages'] ?? 0) + payFromPayroll;
+        _processedStaffIds = paidStaffIds;
+      } catch (_) {}
+
+      // Estimate unprocessed wages from completed shifts (carers who haven't
+      // had payroll run yet). Reads the carer's last known hourly_rate from
+      // payroll_history; falls back to £11.44/hr (UK National Living Wage 2024).
+      try {
+        final estWages = await _supabase.from('shifts')
+            .select('carer_id, start_time, end_time')
+            .eq('status', 'completed')
+            .not('carer_id', 'is', null)
+            .gte('scheduled_date', s).lte('scheduled_date', e);
+        double estimatedWages = 0;
+        // Cache rates per carer so we only look up once
+        final Map<String, double> carerRates = {};
+        for (final sh in (estWages as List).cast<Map<String, dynamic>>()) {
+          final carerId = sh['carer_id'] as String?;
+          if (carerId == null || _processedStaffIds.contains(carerId)) continue;
+          // Look up this carer's last known rate (cache it)
+          double rate = carerRates[carerId] ?? 11.44;
+          if (!carerRates.containsKey(carerId)) {
+            try {
+              final lastPay = await _supabase.from('payroll_history')
+                  .select('hourly_rate').eq('staff_id', carerId)
+                  .order('period_end', ascending: false).limit(1).maybeSingle();
+              if (lastPay != null) {
+                rate = ((lastPay['hourly_rate'] as num?)?.toDouble() ?? 11.44);
+              }
+            } catch (_) {}
+            carerRates[carerId] = rate;
+          }
+          final hours = _shiftHours(sh['start_time'] ?? '', sh['end_time'] ?? '');
+          estimatedWages += hours * rate;
+        }
+        if (estimatedWages > 0) {
+          totalExp += estimatedWages;
+          expByCat['wages'] = (expByCat['wages'] ?? 0) + estimatedWages;
+        }
+      } catch (_) {}
 
       // Routes
-      final routes = await _supabase.from('dom_care_routes').select('id, name');
+      final routes = await _supabase.from('routes').select('id, name');
       final routeList = routes as List;
       final routeSummaries = <_RouteSummary>[];
       for (final r in routeList) {
         final rid = r['id'] as String;
         final rname = r['name'] as String;
-        final rv = await _supabase.from('visits')
-            .select('billing_amount')
-            .eq('route_id', rid)
-            .gte('visit_date', s)
-            .lte('visit_date', e);
-        final rvList = rv as List;
-        final rRev = rvList.fold<num>(0, (s, v) => s + ((v['billing_amount'] as num?) ?? 0)).toDouble();
-        final re = await _supabase.from('receipt_entries')
-            .select('total_amount')
-            .eq('route_id', rid)
-            .gte('receipt_date', s)
-            .lte('receipt_date', e)
-            .eq('is_revenue', false);
-        final reList = re as List;
-        final rExp = reList.fold<num>(0, (s, v) => s + ((v['total_amount'] as num?) ?? 0)).toDouble();
-        routeSummaries.add(_RouteSummary(rname, rRev, rExp, rvList.length));
+        double rRev = 0; int rVisCt = 0;
+        try {
+          final rv = await _supabase.from('route_visits')
+              .select('duration_minutes').eq('route_id', rid)
+              .gte('visit_date', s).lte('visit_date', e);
+          for (final v in (rv as List).cast<Map<String, dynamic>>()) {
+            final mins = (v['duration_minutes'] as num?)?.toDouble() ?? 60;
+            rRev += (mins / 60) * 20; rVisCt++;
+          }
+        } catch (_) {}
+        double rExp = 0;
+        try {
+          final re = await _supabase.from('receipt_entries')
+              .select('total_amount').eq('route_id', rid)
+              .gte('receipt_date', s).lte('receipt_date', e);
+          for (final e2 in (re as List).cast<Map<String, dynamic>>()) {
+            rExp += (e2['total_amount'] as num?)?.toDouble() ?? 0;
+          }
+        } catch (_) {}
+        if (rVisCt > 0 || rExp > 0) routeSummaries.add(_RouteSummary(rname, rRev, rExp, rVisCt));
       }
 
       // Previous period
@@ -198,17 +279,20 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
       if (_compare && _prevPeriod != null) {
         final ps = _prevPeriod!.start.toIso8601String().split('T')[0];
         final pe = _prevPeriod!.end.toIso8601String().split('T')[0];
-        final pv = await _supabase.from('visits')
-            .select('billing_amount')
-            .gte('visit_date', ps)
-            .lte('visit_date', pe);
-        prevRev = (pv as List).fold<num>(0, (s, v) => s + ((v['billing_amount'] as num?) ?? 0)).toDouble();
-        final pr = await _supabase.from('receipt_entries')
-            .select('total_amount')
-            .gte('receipt_date', ps)
-            .lte('receipt_date', pe)
-            .eq('is_revenue', false);
-        prevExp = (pr as List).fold<num>(0, (s, v) => s + ((v['total_amount'] as num?) ?? 0)).toDouble();
+        final pi = await _supabase.from('invoices')
+            .select('total_amount').eq('status', 'paid')
+            .gte('period_end', ps).lte('period_end', pe);
+        for (final i in (pi as List)) {
+          prevRev += ((i['total_amount'] as num?)?.toDouble() ?? 0);
+        }
+        try {
+          final pr = await _supabase.from('receipt_entries')
+              .select('total_amount')
+              .gte('receipt_date', ps).lte('receipt_date', pe);
+          for (final r in (pr as List).cast<Map<String, dynamic>>()) {
+            prevExp += ((r['total_amount'] as num?)?.toDouble() ?? 0);
+          }
+        } catch (_) {}
       }
 
       setState(() {
@@ -216,11 +300,10 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
           revenueDomCare: revenueDomCare,
           domCareVisitCount: domCareCount,
           revenueAgency: revenueAgency,
-          agencyPlacementCount: shiftList.length,
+          agencyPlacementCount: 0,
           totalExpenses: totalExp,
           expensesByCategory: expByCat,
-          routes: routeSummaries,
-          recentReceipts: receiptList.take(10).toList().cast<Map<String, dynamic>>(),
+          routes: routeSummaries, recentReceipts: [],
           prevRevenue: prevRev,
           prevExpenses: prevExp,
         );
@@ -232,6 +315,17 @@ class _ProfitLossScreenState extends State<ProfitLossScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
+  }
+
+  double _shiftHours(String startTime, String endTime) {
+    try {
+      final s = startTime.split(':'), e = endTime.split(':');
+      if (s.length < 2 || e.length < 2) return 1.0;
+      final sm = (int.tryParse(s[0]) ?? 0) * 60 + (int.tryParse(s[1]) ?? 0);
+      final em = (int.tryParse(e[0]) ?? 0) * 60 + (int.tryParse(e[1]) ?? 0);
+      final diff = em - sm;
+      return diff > 0 ? diff / 60.0 : 1.0;
+    } catch (_) { return 1.0; }
   }
 
   void _pickCustom() async {

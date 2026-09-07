@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/supabase_auth_service.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,16 +30,12 @@ class _LoginScreenState extends State<LoginScreen> {
       });
 
       final authService = Provider.of<SupabaseAuthService>(context, listen: false);
-      final user = await authService.signInWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
+      final result = await authService.signInWithEmailPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (user != null) {
+      // SupabaseAuthService.signInWithEmailPassword returns AuthResult (not User?)
+      if (result.success) {
         // Login successful
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login successful!')),
@@ -46,10 +43,71 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         // Login failed
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid email or password')),
+          SnackBar(content: Text(result.errorMessage ?? 'Invalid email or password')),
         );
       }
+
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  void _showForgotPasswordSheet(BuildContext context) {
+    final emailController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+          left: 24, right: 24, top: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Forgot password',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Enter your email and we\'ll send you a link to reset your password.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email address',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final authService = context.read<SupabaseAuthService>();
+                final result = await authService.resetPassword(emailController.text);
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result.success
+                        ? result.message ?? 'Password reset link sent!'
+                        : result.errorMessage ?? 'Failed to send reset link'),
+                    backgroundColor: result.success ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+              child: const Text('Send reset link'),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showMagicLinkSheet(BuildContext context) {
@@ -182,6 +240,21 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed: () => _showMagicLinkSheet(context),
                 child: const Text('Sign in with magic link'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => _showForgotPasswordSheet(context),
+                child: const Text('Forgot password?'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  );
+                },
+                child: const Text('New here? Create an account'),
               ),
             ],
           ),

@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 class Carer {
   final String id;
   final String? name;
@@ -31,6 +29,9 @@ class Carer {
   final DateTime? dateOfBirth;
   final String? address;
   final String? organisationId;
+  final String? jobRole;
+  final String? staffType;
+  final String? inviteStatus;
 
   Carer({
     required this.id,
@@ -63,6 +64,9 @@ class Carer {
     this.dateOfBirth,
     this.address,
     this.organisationId,
+    this.jobRole,
+    this.staffType,
+    this.inviteStatus,
   });
 
   Map<String, dynamic> toMap() {
@@ -136,6 +140,9 @@ class Carer {
       updatedAt: _parseDateTime(map['updated_at']) ?? DateTime.now(),
       dateOfBirth: _parseDateTime(map['date_of_birth']),
       address: map['address'],
+      jobRole: map['job_role'],
+      staffType: map['staff_type'],
+      inviteStatus: map['invite_status'],
     );
   }
 

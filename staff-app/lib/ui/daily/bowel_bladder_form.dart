@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:staff_app/services/bowel_bladder_service.dart';
 import 'package:staff_app/models/bowel_bladder_chart.dart';
 
@@ -37,7 +37,7 @@ class _BowelBladderFormState extends State<BowelBladderForm> {
   Future<void> _loadPreviousData() async {
     setState(() => _isLoading = true);
     try {
-      final bowelBladderService = Provider.of<BowelBladderService>(context, listen: false);
+      final bowelBladderService = BowelBladderService(Supabase.instance.client);
       final charts = await bowelBladderService.getChartsForServiceUser(widget.serviceUserId);
       
       if (charts.isNotEmpty) {
@@ -121,7 +121,7 @@ class _BowelBladderFormState extends State<BowelBladderForm> {
     setState(() => _isLoading = true);
     
     try {
-      final bowelBladderService = Provider.of<BowelBladderService>(context, listen: false);
+      final bowelBladderService = BowelBladderService(Supabase.instance.client);
       final chart = BowelBladderChart(
         serviceUserId: widget.serviceUserId,
         chartDate: _selectedDate,
@@ -132,7 +132,8 @@ class _BowelBladderFormState extends State<BowelBladderForm> {
         notes: _notesController.text.trim(),
       );
 
-      await bowelBladderService.createChart(chart, ''); // Would come from auth context
+      final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      await bowelBladderService.createChart(chart, userId);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bowel & Bladder chart created successfully')),
@@ -398,29 +399,28 @@ class _BowelBladderFormState extends State<BowelBladderForm> {
   }
 
   Widget _buildBristolScaleReference() {
-    return Column(
-      children: BristolStoolScale.descriptions.entries.map((entry) {
-      final color = _getBristolColor(entry.key);
-      return Row(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
+    final colors = [Colors.brown.shade800, Colors.brown.shade700, Colors.green.shade600, Colors.green.shade400, Colors.orange.shade400, Colors.orange.shade600, Colors.blue.shade400];
+    final shortDesc = ['Hard lumps', 'Lumpy sausage', 'Cracked sausage', 'Smooth sausage', 'Soft blobs', 'Mushy', 'Liquid'];
+    return SizedBox(
+      height: 90,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: 7,
+        itemBuilder: (_, i) {
+          final t = i + 1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Column(
+              children: [
+                Image.asset('assets/images/type_$t.png', height: 48, errorBuilder: (c, e, s) => Icon(Icons.broken_image, size: 48, color: colors[i])),
+                const SizedBox(height: 4),
+                Text('Type $t', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: colors[i])),
+                Text(shortDesc[i], style: TextStyle(fontSize: 9, color: colors[i])),
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Type ${entry.key}: ${entry.value}',
-              style: TextStyle(color: color),
-            ),
-          ),
-        ],
-      );
-    }).toList(),
+          );
+        },
+      ),
     );
   }
 
@@ -475,13 +475,22 @@ class _BowelBladderFormState extends State<BowelBladderForm> {
               ],
             ),
             
-            // Bristol Stool Type
-            const SizedBox(height: 8),
+            // Bristol Stool Type with image
+            const SizedBox(height: 4),
             Row(
               children: [
                 const Text('Bristol Type:'),
                 const SizedBox(width: 8),
-                Text('${entry.bristolStoolType} - ${entry.getBristolDescription()}'),
+                Image.asset(
+                  'assets/images/type_${entry.bristolStoolType}.png',
+                  height: 32,
+                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 32),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('Type ${entry.bristolStoolType} — ${entry.getBristolDescription()}',
+                      style: const TextStyle(fontSize: 12)),
+                ),
               ],
             ),
             

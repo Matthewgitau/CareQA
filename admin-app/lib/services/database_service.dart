@@ -35,14 +35,13 @@ class DatabaseService {
     return result;
   }
 
-  Future<void> addCarer(Carer carer) async {
+  Future<String> addCarer(Carer carer) async {
     try {
       final data = await _withOrgId(carer.toMap());
       print('=== DEBUG: Carer data being inserted ===');
       print(data);
-      print('=== Does it have an "id" field? ===');
-      print(data.containsKey('id') ? 'YES: ${data['id']}' : 'NO');
-      await _client.from('carers').insert(data);
+      final response = await _client.from('carers').insert(data).select('id').single();
+      return response['id'] as String;
     } on PostgrestException catch (e) {
       print('=== ERROR ===');
       print(e.message);

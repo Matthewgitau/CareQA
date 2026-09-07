@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/supabase_auth_service.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -182,6 +183,15 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed: () => _showMagicLinkSheet(context),
                 child: const Text('Sign in with magic link'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SignUpScreen()),
+                  );
+                },
+                child: const Text('New here? Create an account'),
               ),
             ],
           ),

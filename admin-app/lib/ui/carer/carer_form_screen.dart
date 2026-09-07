@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:admin_app/models/carer.dart';
 import 'package:admin_app/services/database_service.dart';
+import 'package:admin_app/services/carer_invite_service.dart';
+import 'package:admin_app/services/supabase_auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 class CarerFormScreen extends StatefulWidget {
@@ -41,6 +44,12 @@ class _CarerFormScreenState extends State<CarerFormScreen> {
   final _sortCodeController = TextEditingController();
   final _accountNumberController = TextEditingController();
   final _photoUrlController = TextEditingController();
+
+  // Staff Login
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  String _staffRole = 'carer';
+  bool _createLogin = false;
 
   bool _isLoading = false;
   
@@ -82,6 +91,12 @@ class _CarerFormScreenState extends State<CarerFormScreen> {
       _fitnessToWorkExpiry = widget.carer!.fitnessToWorkExpiry;
       _dateOfBirth = widget.carer!.dateOfBirth;
       _addressController.text = widget.carer!.address ?? '';
+      _staffRole = widget.carer!.staffType ?? widget.carer!.jobRole ?? 'carer';
+      if (_staffRole != 'carer' && _staffRole != 'senior_carer' &&
+          _staffRole != 'team_leader' && _staffRole != 'manager' &&
+          _staffRole != 'admin' && _staffRole != 'super_admin') {
+        _staffRole = 'carer';
+      }
     }
   }
 
@@ -102,6 +117,8 @@ class _CarerFormScreenState extends State<CarerFormScreen> {
     _accountNumberController.dispose();
     _photoUrlController.dispose();
     _addressController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -205,19 +222,55 @@ class _CarerFormScreenState extends State<CarerFormScreen> {
           isActive: true,
           createdAt: widget.carer?.createdAt ?? DateTime.now(),
           updatedAt: DateTime.now(),
+          jobRole: _staffRole,
+          staffType: _staffRole,
         );
 
+        String carerId = widget.carer?.id ?? '';
         if (widget.carer != null) {
           await databaseService.updateCarer(carer);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Carer updated successfully')),
-          );
         } else {
-          await databaseService.addCarer(carer);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Carer created successfully')),
+          carerId = await databaseService.addCarer(carer);
+        }
+
+        // Create / reset the staff-app login (auth user + profile) when requested
+        final password = _passwordController.text.trim();
+        if (_createLogin && password.isNotEmpty) {
+          final authService =
+              Provider.of<SupabaseAuthService>(context, listen: false);
+          final organisationId = authService.organisationId;
+          final invitedBy = authService.currentUser?.id;
+
+          if (organisationId == null || organisationId.isEmpty) {
+            throw Exception('No organisation found for this admin');
+          }
+          if (invitedBy == null) {
+            throw Exception('Not authenticated');
+          }
+
+          final inviteService = CarerInviteService(Supabase.instance.client);
+          await inviteService.upsertCarerAuth(
+            carerId: carerId,
+            email: _emailController.text.trim(),
+            fullName: _nameController.text.trim(),
+            password: password,
+            role: _staffRole,
+            organisationId: organisationId,
+            invitedBy: invitedBy,
           );
         }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.carer != null
+                  ? _createLogin
+                      ? 'Carer updated & login password set'
+                      : 'Carer updated successfully'
+                  : 'Carer created & staff login ready',
+            ),
+          ),
+        );
 
         Navigator.pop(context);
     } catch (e) {
@@ -711,6 +764,87 @@ class _CarerFormScreenState extends State<CarerFormScreen> {
                               prefixIcon: Icon(Icons.photo),
                             ),
                             validator: _validateUrl,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Staff Login Card
+                  Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Staff App Login',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Set a password so this staff member can log in to the staff app.',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _staffRole,
+                            decoration: const InputDecoration(
+                              labelText: 'Staff Role',
+                              prefixIcon: Icon(Icons.badge),
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(value: 'carer', child: Text('Carer')),
+                              DropdownMenuItem(value: 'senior_carer', child: Text('Senior Carer')),
+                              DropdownMenuItem(value: 'team_leader', child: Text('Team Leader')),
+                              DropdownMenuItem(value: 'manager', child: Text('Manager')),
+                              DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                            ],
+                            onChanged: (v) => setState(() => _staffRole = v ?? 'carer'),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _passwordController,
+                            decoration: const InputDecoration(
+                              labelText: 'Password (min 6 characters)',
+                              prefixIcon: Icon(Icons.lock),
+                              border: OutlineInputBorder(),
+                            ),
+                            obscureText: true,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _confirmPasswordController,
+                            decoration: const InputDecoration(
+                              labelText: 'Confirm Password',
+                              prefixIcon: Icon(Icons.lock_outline),
+                              border: OutlineInputBorder(),
+                            ),
+                            obscureText: true,
+                            validator: (value) {
+                              if (_createLogin &&
+                                  value != _passwordController.text.trim()) {
+                                return 'Passwords do not match';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: Text(
+                              widget.carer != null
+                                  ? 'Set / reset this staff login password'
+                                  : 'Create this staff login',
+                            ),
+                            value: _createLogin,
+                            onChanged: (v) =>
+                                setState(() => _createLogin = v ?? false),
                           ),
                         ],
                       ),

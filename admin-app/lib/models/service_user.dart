@@ -1,3 +1,54 @@
+class VisitPreferences {
+  final String? preferredTime; // e.g. "09:00"
+  final int? durationMinutes;
+  final List<String> visitDays; // ["monday", "wednesday", "friday"]
+  final bool requiresTwoCarers;
+  final String? notes;
+
+  const VisitPreferences({
+    this.preferredTime,
+    this.durationMinutes,
+    this.visitDays = const [],
+    this.requiresTwoCarers = false,
+    this.notes,
+  });
+
+  factory VisitPreferences.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const VisitPreferences();
+    return VisitPreferences(
+      preferredTime: json['preferred_time'] as String?,
+      durationMinutes: json['duration_minutes'] as int?,
+      visitDays: (json['visit_days'] as List?)?.cast<String>() ?? const [],
+      requiresTwoCarers: json['requires_two_carers'] as bool? ?? false,
+      notes: json['notes'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'preferred_time': preferredTime,
+        'duration_minutes': durationMinutes,
+        'visit_days': visitDays,
+        'requires_two_carers': requiresTwoCarers,
+        'notes': notes,
+      };
+
+  VisitPreferences copyWith({
+    String? preferredTime,
+    int? durationMinutes,
+    List<String>? visitDays,
+    bool? requiresTwoCarers,
+    String? notes,
+  }) {
+    return VisitPreferences(
+      preferredTime: preferredTime ?? this.preferredTime,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      visitDays: visitDays ?? this.visitDays,
+      requiresTwoCarers: requiresTwoCarers ?? this.requiresTwoCarers,
+      notes: notes ?? this.notes,
+    );
+  }
+}
+
 class ServiceUser {
   final String id;
   final String name;
@@ -46,6 +97,23 @@ class ServiceUser {
     this.isActive = true,
     required this.createdAt,
   });
+
+  /// Visit preferences parsed from the `care_plan` JSON column.
+  VisitPreferences get visitPreferences {
+    final plan = carePlan['visit_preferences'];
+    if (plan is Map<String, dynamic>) {
+      return VisitPreferences.fromJson(plan);
+    }
+    return const VisitPreferences();
+  }
+
+  /// Returns the care_plan map with the given visit preferences merged in.
+  Map<String, dynamic> carePlanWithVisitPreferences(
+      VisitPreferences preferences) {
+    final updated = Map<String, dynamic>.from(carePlan);
+    updated['visit_preferences'] = preferences.toJson();
+    return updated;
+  }
 
   Map<String, dynamic> toMap() {
     return {

@@ -17,6 +17,7 @@ class Notification {
   final String? actionLabel;
   final DateTime? expiresAt;
   final DateTime createdAt;
+  final DateTime? archivedAt;
 
   Notification({
     required this.id,
@@ -35,6 +36,7 @@ class Notification {
     this.actionLabel,
     this.expiresAt,
     required this.createdAt,
+    this.archivedAt,
   });
 
   factory Notification.fromJson(Map<String, dynamic> json) {
@@ -55,6 +57,7 @@ class Notification {
       actionLabel: json['action_label'],
       expiresAt: json['expires_at'] != null ? DateTime.parse(json['expires_at']) : null,
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
+      archivedAt: json['archived_at'] != null ? DateTime.parse(json['archived_at']) : null,
     );
   }
 
@@ -76,12 +79,53 @@ class Notification {
       'action_label': actionLabel,
       'expires_at': expiresAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
+      'archived_at': archivedAt?.toIso8601String(),
     };
   }
 
   bool get isUrgent => priority == 'urgent';
   bool get isHigh => priority == 'high';
   bool get isExpired => expiresAt != null && expiresAt!.isBefore(DateTime.now());
+  bool get isArchived => archivedAt != null;
+
+  Notification copyWith({
+    String? type,
+    String? title,
+    String? body,
+    Map<String, dynamic>? data,
+    String? priority,
+    bool? read,
+    DateTime? readAt,
+    bool? delivered,
+    DateTime? deliveredAt,
+    bool? actionRequired,
+    String? actionUrl,
+    String? actionLabel,
+    DateTime? expiresAt,
+    DateTime? createdAt,
+    DateTime? archivedAt,
+    bool clearArchivedAt = false,
+  }) {
+    return Notification(
+      id: id,
+      userId: userId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      data: data ?? this.data,
+      priority: priority ?? this.priority,
+      read: read ?? this.read,
+      readAt: readAt ?? this.readAt,
+      delivered: delivered ?? this.delivered,
+      deliveredAt: deliveredAt ?? this.deliveredAt,
+      actionRequired: actionRequired ?? this.actionRequired,
+      actionUrl: actionUrl ?? this.actionUrl,
+      actionLabel: actionLabel ?? this.actionLabel,
+      expiresAt: expiresAt ?? this.expiresAt,
+      createdAt: createdAt ?? this.createdAt,
+      archivedAt: clearArchivedAt ? null : (archivedAt ?? this.archivedAt),
+    );
+  }
 
   String get timeAgo {
     final difference = DateTime.now().difference(createdAt);

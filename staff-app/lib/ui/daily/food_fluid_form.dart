@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:staff_app/services/food_fluid_service.dart';
 import 'package:staff_app/models/food_fluid_chart.dart';
-import 'package:staff_app/models/food_fluid_chart.dart' as food_fluid;
 
 class FoodFluidForm extends StatefulWidget {
   final String serviceUserId;
@@ -113,8 +112,8 @@ class _FoodFluidFormState extends State<FoodFluidForm> {
       });
 
       try {
-        final foodFluidService = Provider.of<FoodFluidService>(context, listen: false);
-        final currentUserId = ''; // Would come from auth context
+        final foodFluidService = FoodFluidService(Supabase.instance.client);
+        final currentUserId = Supabase.instance.client.auth.currentUser?.id ?? '';
 
         final chart = FoodFluidChart(
           serviceUserId: widget.serviceUserId,
@@ -363,7 +362,7 @@ class _FoodFluidFormState extends State<FoodFluidForm> {
                 const SizedBox(width: 16),
                 DropdownButton<String>(
                   value: mealData['foodEaten'],
-                  items: food_fluid.FoodFluidConstants.foodEatenOptions.map((option) {
+                  items: FoodFluidConstants.foodEatenOptions.map((option) {
                     return DropdownMenuItem<String>(
                       value: option,
                       child: Text(option),

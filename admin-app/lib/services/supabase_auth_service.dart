@@ -14,6 +14,8 @@ class SupabaseAuthService extends ChangeNotifier {
   User? _currentUser;
   String? _userRole;
   String? _organisationId;
+  String? _subscriptionStatus;
+  DateTime? _trialEndsAt;
   bool _isLoading = false;
 
   User? get currentUser => _currentUser;
@@ -21,6 +23,17 @@ class SupabaseAuthService extends ChangeNotifier {
   String? get organisationId => _organisationId;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+
+  /// Fast local gate derived from the profile row. The authoritative
+  /// check lives in SubscriptionService.refresh() (edge function) -
+  /// this is only used on first paint to avoid a paywall flash.
+  bool get hasLocalSubscriptionAccess {
+    if (_subscriptionStatus == 'active') return true;
+    if (_subscriptionStatus == 'trialing') {
+      return _trialEndsAt == null || _trialEndsAt!.isAfter(DateTime.now());
+    }
+    return false;
+  }
 
   SupabaseAuthService(this._supabase) {
     _supabase.auth.onAuthStateChange.listen((data) {
@@ -51,17 +64,18 @@ class SupabaseAuthService extends ChangeNotifier {
       );
 
       if (response.user == null) {
-        return AuthResult.failure('Sign in failed. Please check your credentials.');
+        return AuthResult.failure(
+            'Sign in failed. Please check your credentials.');
       }
 
       await _loadUserProfile();
       await _cacheSessionFlag(true);
       return AuthResult.success(response.user!);
-
     } on AuthException catch (e) {
       return AuthResult.failure(_mapAuthError(e.message));
     } catch (e) {
-      return AuthResult.failure('An unexpected error occurred. Please try again.');
+      return AuthResult.failure(
+          'An unexpected error occurred. Please try again.');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -112,7 +126,8 @@ class SupabaseAuthService extends ChangeNotifier {
     try {
       final hasCachedSession = await hasSessionCached();
       if (!hasCachedSession) {
-        return AuthResult.failure('No cached session found. Please sign in again.');
+        return AuthResult.failure(
+            'No cached session found. Please sign in again.');
       }
 
       final biometricAvailable = await isBiometricAvailable();
@@ -150,7 +165,6 @@ class SupabaseAuthService extends ChangeNotifier {
       await _loadUserProfile();
       notifyListeners();
       return AuthResult.success(_currentUser!);
-
     } catch (e) {
       return AuthResult.failure('Biometric error: ${e.toString()}');
     }
@@ -159,12 +173,19 @@ class SupabaseAuthService extends ChangeNotifier {
   // ─── Sign Out ───────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
-    await _cacheSessionFlag(false);
-    _currentUser = null;
-    _userRole = null;
-    _organisationId = null;
-    notifyListeners();
+    try {
+      await _supabase.auth.signOut();
+    } catch (e) {
+      // Even if the remote sign-out fails (network), we must clear the
+      // local session state so the user is never trapped on the paywall.
+      debugPrint('signOut remote call failed (clearing local state): $e');
+    } finally {
+      await _cacheSessionFlag(false);
+      _currentUser = null;
+      _userRole = null;
+      _organisationId = null;
+      notifyListeners();
+    }
   }
 
   // ─── Profile Loading ────────────────────────────────────────────────────────
@@ -175,12 +196,16 @@ class SupabaseAuthService extends ChangeNotifier {
     try {
       final profile = await _supabase
           .from('profiles')
-          .select('role, organisation_id')
+          .select('role, organisation_id, subscription_status, trial_ends_at')
           .eq('id', _currentUser!.id)
           .single();
 
       _userRole = profile['role'] as String?;
       _organisationId = profile['organisation_id'] as String?;
+      _subscriptionStatus = profile['subscription_status'] as String?;
+      final trialEndsAt = profile['trial_ends_at'] as String?;
+      _trialEndsAt =
+          trialEndsAt != null ? DateTime.tryParse(trialEndsAt) : null;
 
       // Cache role and org for quick access
       final prefs = await SharedPreferences.getInstance();

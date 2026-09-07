@@ -28,13 +28,13 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
 
   // Common fields
   String _description = '';
-  String _severity = 'medium';
+  String _severity = 'death'; // will be set per-type in initState
   String _status = 'reported';
   DateTime _incidentDate = DateTime.now();
   String _location = '';
   String _serviceUserName = '';
-
-  // Type-specific fields
+  String? _serviceUserId;
+  List<Map<String, dynamic>> _serviceUsers = [];
   final Map<String, dynamic> _extraFields = {};
 
   @override
@@ -42,24 +42,139 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     super.initState();
     _isCreate = widget.mode == 'create';
 
+    // Set sensible defaults based on incident type
+    _severity = _defaultSeverity(widget.incidentType);
+
     if (!_isCreate && widget.rawData != null) {
       _populateFromRawData(widget.rawData!);
     }
+    _loadServiceUsers();
+  }
+
+  /// Returns the first dropdown value for each incident type.
+  String _defaultSeverity(String type) {
+    switch (type) {
+      case 'accident': return 'none';
+      case 'complaint': return 'care_quality';
+      case 'medication': return 'low';
+      case 'missing_person': return 'low';
+      case 'serious': return 'death';
+      case 'missing_item': return 'low';
+      default: return 'none';
+    }
+  }
+
+  Future<void> _loadServiceUsers() async {
+    try {
+      final data = await _client.from('service_users').select('id, name').order('name');
+      if (mounted) setState(() => _serviceUsers = List<Map<String, dynamic>>.from(data));
+    } catch (_) {}
   }
 
   void _populateFromRawData(Map<String, dynamic> data) {
-    _status = data['status']?.toString() ?? 'reported';
-    _severity = data['severity']?.toString() ?? data['injury_severity']?.toString() ?? 'medium';
+    _status = _normalizeStatus(data['status']?.toString() ?? 'reported');
+    _severity = _normalizeSeverity(
+      _readSeverityFromData(data, widget.incidentType),
+      widget.incidentType,
+    );
     _description = data['description']?.toString() ?? '';
     _location = data['location']?.toString() ?? '';
     _serviceUserName = data['service_user_name']?.toString() ?? '';
+    _serviceUserId = data['service_user_id']?.toString();
 
-    // Parse date based on incident type
     final dateKey = _dateKeyForType(widget.incidentType);
     _incidentDate = _tryParseDate(data[dateKey]) ?? DateTime.now();
-
-    // Copy all extra fields for editing
     _extraFields.addAll(data);
+    // Normalize type-specific dropdown values so they match
+    _normalizeExtraFields(widget.incidentType);
+  }
+
+  /// Ensure _extraFields values match the dropdown items for each type.
+  void _normalizeExtraFields(String type) {
+    switch (type) {
+      case 'accident':
+        if (!['fall','slip','burn','medication_error','equipment','other']
+            .contains(_extraFields['accident_type']?.toString()))
+          _extraFields['accident_type'] = 'other';
+        break;
+      case 'complaint':
+        if (!['care_quality','staff_conduct','facilities','communication','food','safeguarding','other']
+            .contains(_extraFields['complaint_category']?.toString()))
+          _extraFields['complaint_category'] = 'care_quality';
+        break;
+      case 'medication':
+        if (!['wrong_medication','wrong_dose','missed_dose','double_dose','wrong_time','allergic_reaction','other']
+            .contains(_extraFields['incident_type']?.toString()))
+          _extraFields['incident_type'] = 'wrong_medication';
+        break;
+    }
+  }
+
+  /// Reads the severity/category value from the correct DB field for each type.
+  String _readSeverityFromData(Map<String, dynamic> data, String type) {
+    switch (type) {
+      case 'accident':
+        return (data['injury_severity'] ?? data['severity'])?.toString() ?? 'none';
+      case 'complaint':
+        return (data['complaint_category'] ?? data['severity'])?.toString() ?? 'care_quality';
+      case 'medication':
+        return (data['severity'])?.toString() ?? 'low';
+      case 'missing_person':
+        return (data['risk_assessment'] ?? data['severity'])?.toString() ?? 'low';
+      case 'serious':
+        return (data['incident_type'] ?? data['severity'])?.toString() ?? 'death';
+      default:
+        return data['severity']?.toString() ?? 'none';
+    }
+  }
+
+  /// Map stored status values to dropdown-compatible values.
+  String _normalizeStatus(String raw) {
+    switch (raw.toLowerCase()) {
+      case 'open': return 'reported';
+      case 'investigating': return 'investigating';
+      case 'active': return 'active';
+      case 'resolved': return 'resolved';
+      case 'closed': return 'closed';
+      default: return 'reported';
+    }
+  }
+
+  /// Map stored severity values to exactly match one dropdown value per type.
+  String _normalizeSeverity(String raw, String type) {
+    final lower = raw.toLowerCase();
+    switch (type) {
+      case 'accident':
+        // dropdown: none, minor, moderate, major, critical
+        if (['none','minor','moderate','major','critical'].contains(lower)) return lower;
+        if (lower == 'low') return 'minor';
+        if (lower == 'medium') return 'moderate';
+        if (lower == 'high') return 'major';
+        return 'none';
+      case 'complaint':
+        // dropdown: care_quality, staff_conduct, facilities, communication, safeguarding, other
+        if (['care_quality','staff_conduct','facilities','communication','safeguarding','other'].contains(lower)) return lower;
+        if (lower == 'food') return 'other';
+        return 'care_quality';
+      case 'medication':
+      case 'missing_person':
+        // medication: low, medium, high, critical
+        // missing_person: low, medium, high
+        if (['low','medium','high','critical'].contains(lower)) return lower;
+        if (lower == 'minor' || lower == 'none') return 'low';
+        if (lower == 'moderate') return 'medium';
+        if (lower == 'major') return 'high';
+        return 'low';
+      case 'serious':
+        // dropdown: death, serious_injury, abuse, police_involvement, safeguarding_alert, other
+        if (['death','serious_injury','abuse','police_involvement','safeguarding_alert','other'].contains(lower)) return lower;
+        if (lower == 'physical' || lower == 'physical abuse') return 'abuse';
+        if (lower == 'neglect') return 'abuse';
+        if (lower == 'self-harm' || lower == 'self_harm') return 'safeguarding_alert';
+        return 'other';
+      default:
+        return raw;
+    }
   }
 
   // ─── Table routing ─────────────────────────────────────
@@ -124,6 +239,8 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
     final base = <String, dynamic>{
       dateKey: _incidentDate.toIso8601String().split('T').first,
       'status': _status,
+      'service_user_id': _serviceUserId,
+      'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
       'created_by': _client.auth.currentUser?.id,
       'organisation_id': _client.auth.currentUser?.userMetadata?['organisation_id'],
     };
@@ -134,8 +251,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'description': _description,
           'location': _location.isNotEmpty ? _location : null,
           'injury_severity': _severity,
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-          'accident_type': _extraFields['accident_type'] ?? 'other',
+                    'accident_type': _extraFields['accident_type'] ?? 'other',
           'first_aid_given': _extraFields['first_aid_given'] ?? false,
           'first_aid_details': _extraFields['first_aid_details'],
           'medical_attention_sought': _extraFields['medical_attention_sought'] ?? false,
@@ -150,8 +266,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'complaint_category': _severity,
           'complainant_name': _extraFields['complainant_name'],
           'complainant_type': _extraFields['complainant_type'],
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-        });
+                  });
         break;
 
       case 'medication':
@@ -164,8 +279,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'incident_type': _extraFields['incident_type'] ?? 'error',
           'immediate_action': _extraFields['immediate_action'],
           'reported_to_family': _extraFields['reported_to_family'] ?? false,
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-        });
+                  });
         break;
 
       case 'missing_person':
@@ -173,8 +287,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'circumstances': _description,
           'last_seen_location': _location.isNotEmpty ? _location : null,
           'risk_assessment': _severity,
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-          'police_informed': _extraFields['police_informed'] ?? false,
+                    'police_informed': _extraFields['police_informed'] ?? false,
           'family_informed': _extraFields['family_informed'] ?? false,
         });
         break;
@@ -184,8 +297,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'description': _description,
           'incident_type': _severity,
           'notification_required': _extraFields['notification_required'] ?? true,
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-          'police_involved': _extraFields['police_involved'] ?? false,
+                    'police_involved': _extraFields['police_involved'] ?? false,
           'investigation_lead': _extraFields['investigation_lead'],
         });
         break;
@@ -197,8 +309,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           'item_value': _extraFields['item_value'],
           'last_seen_location': _location.isNotEmpty ? _location : null,
           'circumstances': _extraFields['circumstances'],
-          'service_user_name': _serviceUserName.isNotEmpty ? _serviceUserName : null,
-          'police_informed': _extraFields['police_informed'] ?? false,
+                    'police_informed': _extraFields['police_informed'] ?? false,
           'family_informed': _extraFields['family_informed'] ?? false,
         });
         break;
@@ -301,15 +412,38 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Service User Name
-              TextFormField(
-                initialValue: _serviceUserName,
-                decoration: const InputDecoration(
-                  labelText: 'Service User Name',
-                  border: OutlineInputBorder(),
+              // Service User
+              if (_serviceUsers.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: _serviceUserId,
+                  decoration: const InputDecoration(
+                    labelText: 'Service User',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  items: _serviceUsers.map((u) => DropdownMenuItem(
+                    value: u['id'] as String,
+                    child: Text(u['name'] as String? ?? ''),
+                  )).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      final su = _serviceUsers.firstWhere((u) => u['id'] == v);
+                      setState(() {
+                        _serviceUserId = v;
+                        _serviceUserName = (su['name'] as String?) ?? '';
+                      });
+                    }
+                  },
+                )
+              else
+                TextFormField(
+                  initialValue: _serviceUserName,
+                  decoration: const InputDecoration(
+                    labelText: 'Service User Name',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSaved: (v) => _serviceUserName = v?.trim() ?? '',
                 ),
-                onSaved: (v) => _serviceUserName = v?.trim() ?? '',
-              ),
               const SizedBox(height: 16),
 
               // Date picker
@@ -633,7 +767,9 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            initialValue: _extraFields['incident_type'] ?? 'error',
+            initialValue: (_extraFields['incident_type']?.toString().isNotEmpty == true)
+                ? _extraFields['incident_type']
+                : 'wrong_medication',
             decoration: const InputDecoration(
               labelText: 'Incident Type',
               border: OutlineInputBorder(),

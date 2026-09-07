@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:staff_app/services/auth_service.dart';
+import 'package:staff_app/services/supabase_auth_service.dart';
 import 'package:staff_app/services/firestore_service.dart';
 import 'package:staff_app/models/shift.dart';
 import 'package:staff_app/models/visit.dart';
@@ -12,9 +12,9 @@ class StaffDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
+    final authService = Provider.of<SupabaseAuthService>(context);
     final firestoreService = Provider.of<FirestoreService>(context);
-    final currentUser = authService.getCurrentUser();
+    final currentUser = authService.currentUser;
 
     return Scaffold(
       appBar: AppBar(

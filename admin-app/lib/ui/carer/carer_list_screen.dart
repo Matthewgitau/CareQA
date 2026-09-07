@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:admin_app/models/carer.dart';
 import 'package:admin_app/services/database_service.dart';
 import 'carer_form_screen.dart';
+import 'carer_invite_screen.dart';
 
 class CarerListScreen extends StatelessWidget {
   const CarerListScreen({super.key});
@@ -14,6 +15,18 @@ class CarerListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Carers'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CarerInviteScreen()),
+              );
+            },
+            tooltip: 'Invite Carer',
+          ),
+        ],
       ),
       body: FutureBuilder<List<Carer>>(
         future: databaseService.getCarers(),
@@ -36,14 +49,34 @@ class CarerListScreen extends StatelessWidget {
               itemCount: carers.length,
               itemBuilder: (context, index) {
                 final carer = carers[index];
+                final status = carer.inviteStatus ?? (carer.isActive ? 'active' : 'inactive');
+                final statusColor = status == 'active'
+                    ? Colors.green
+                    : status == 'inactive'
+                        ? Colors.red
+                        : Colors.orange;
                 return Card(
                   margin: const EdgeInsets.all(8.0),
                   child: ListTile(
                     title: Text(carer.name ?? ''),
-                    subtitle: Text(carer.email ?? ''),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(carer.email ?? ''),
+                        Text('Role: ${carer.jobRole ?? 'carer'}'),
+                      ],
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Chip(
+                          label: Text(
+                            status.toUpperCase(),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          backgroundColor: statusColor.withOpacity(0.1),
+                          labelStyle: TextStyle(color: statusColor),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.edit),
                           onPressed: () {

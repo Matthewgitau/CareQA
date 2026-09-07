@@ -69,6 +69,7 @@ import 'package:admin_app/ui/admin/drivers_screen.dart';
 import 'package:admin_app/ui/admin/sign_up_screen.dart';
 import 'package:admin_app/ui/admin/generate_report_screen.dart';
 import 'package:admin_app/ui/finance/profit_loss_screen.dart';
+import 'package:admin_app/ui/payroll/payroll_rates_screen.dart';
 import 'package:admin_app/ui/finance/invoice_screen.dart';
 import 'package:admin_app/ui/finance/invoice_list_screen.dart';
 import 'package:admin_app/ui/finance/organisation_profile_screen.dart';
@@ -346,6 +347,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             _i(context, Icons.show_chart, 'Profit & Loss', const ProfitLossScreen()),
             _i(context, Icons.receipt_long, 'Invoice Generator', const InvoiceScreen()),
             _i(context, Icons.list, 'Invoice List', const InvoiceListScreen()),
+            _i(context, Icons.payments, 'Pay Rates', const PayrollRatesScreen()),
             _i(context, Icons.business, 'Organisation Profile', const OrganisationProfileScreen()),
             _i(context, Icons.task_alt, 'Action Plans', const ActionPlansScreen()),
             _i(context, Icons.lightbulb, 'Lessons Learnt', const LessonsLearntScreen()),

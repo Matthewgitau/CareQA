@@ -35,6 +35,15 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   String? _clientEmail;
   String? _clientReference;
 
+  // Billing rate - pulled from client_organisation.billing_rate_per_hour,
+  // editable and used by auto-calculate hours.
+  final _hourlyRateController = TextEditingController(text: '20.00');
+  double _selectedClientRate = 20.0;
+
+  // Billing accuracy - only bill completed (or optionally confirmed) shifts
+  // that are assigned to a carer AND signed off on the digital timesheet.
+  bool _includeConfirmed = false; // "billing in advance" mode
+
   // Period
   DateTime _periodStart = DateTime.now().subtract(const Duration(days: 30));
   DateTime _periodEnd = DateTime.now();
@@ -51,15 +60,19 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   // Organisation profile
   OrganisationProfile? _orgProfile;
 
-  // Clients data
+  // Clients data - unified billable clients (service users + care homes/factories/warehouses)
   List<Map<String, dynamic>> _serviceUsers = [];
-  List<Map<String, dynamic>> _careHomes = [];
-  List<Map<String, dynamic>> _councils = [];
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _hourlyRateController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -68,22 +81,275 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       final profile = await _service.getOrganisationProfile();
       setState(() => _orgProfile = profile);
 
-      // Load clients
-      final su = await Supabase.instance.client.from('service_users').select('id, name, address, email').order('name');
-      final ch = await Supabase.instance.client.from('care_homes').select('id, name, address, email').order('name');
-      final co = await Supabase.instance.client.from('councils').select('id, name, address, email').order('name');
+      // Load each source independently so one failure doesn't blank the whole list.
+      final merged = <Map<String, dynamic>>[];
+
+      // 1. Service users (individual billable clients)
+      try {
+        final su = await Supabase.instance.client.from('service_users')
+            .select('id, name, address, email')
+            .order('name');
+        for (final u in (su as List).cast<Map<String, dynamic>>()) {
+          merged.add({
+            'id': u['id'],
+            'name': u['name'],
+            'address': u['address'],
+            'email': u['email'],
+            'client_type': 'service_user',
+            'rate': null, // no per-user rate; defaults used
+          });
+        }
+      } catch (_) {
+        // Ignore - service_users may be empty or RLS-restricted
+      }
+
+      // 2. Client organisations (care homes / factories / warehouses / hospitals)
+      //    NOTE: schema drift — migration 129 inserts via organisation_types / email,
+      //    migration 029 used type / contact_email. Use SELECT * defensively.
+      try {
+        final clients = await Supabase.instance.client.from('client_organisations')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+        for (final c in (clients as List).cast<Map<String, dynamic>>()) {
+          // Resolve type from either schema (organisation_types JSONB array OR type text)
+          String clientType = 'other';
+          final t = c['organisation_types'] ?? c['type'];
+          if (t is List && t.isNotEmpty) {
+            clientType = t.first.toString();
+          } else if (t is String && t.isNotEmpty) {
+            clientType = t;
+          }
+          merged.add({
+            'id': c['id'],
+            'name': c['name'],
+            'address': c['address'],
+            'email': (c['email'] ?? c['contact_email'])?.toString(),
+            'client_type': clientType, // care_home / warehouse / hospital / other
+            'rate': (c['billing_rate_per_hour'] as num?)?.toDouble() ?? 20.0,
+          });
+        }
+      } catch (_) {
+        // If client_organisations RLS blocks (missing helper functions), skip
+      }
+
+      merged.sort((a, b) => (a['name'] ?? '').toLowerCase().compareTo((b['name'] ?? '').toLowerCase()));
 
       setState(() {
-        _serviceUsers = List<Map<String, dynamic>>.from(su);
-        _careHomes = List<Map<String, dynamic>>.from(ch);
-        _councils = List<Map<String, dynamic>>.from(co);
+        _serviceUsers = merged;
         _loading = false;
       });
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
+    }
+  }
+
+  /// Auto-calculates billable hours for the selected client within the date range.
+  /// Reads from public.shifts (completed) and public.route_visits.
+  Future<void> _autoCalculateHours() async {
+    if (_selectedClientId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a client first'), backgroundColor: Colors.orange));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final clientId = _selectedClientId; // local non-nullable copy
+      if (clientId == null) {
+        setState(() => _saving = false);
+        return;
+      }
+      final start = _periodStart.toIso8601String().split('T').first;
+      final end = _periodEnd.toIso8601String().split('T').first;
+
+      // Determine filter mode based on selected client type and pull the rate
+      final selected = _serviceUsers.firstWhere(
+        (u) => u['id']?.toString() == clientId,
+        orElse: () => {},
+      );
+      final clientType = (selected['client_type'] as String?) ?? 'service_user';
+      final clientRate = (selected['rate'] as double?) ?? 20.0;
+      // Allow admin to override the rate on screen (falls back to client's stored rate)
+      final rate = double.tryParse(_hourlyRateController.text.trim()) ?? clientRate;
+      setState(() => _selectedClientRate = rate);
+
+      // Build the shift + route_visit queries
+      // Shift query joins the digital timesheet (`visits`) so we can verify
+      // sign-off / dispute status exactly as the invoice-accuracy rules require.
+      var shiftQuery = Supabase.instance.client.from('shifts')
+          .select('*, service_users(name), carers(name), visits(sign_off_status, disputed, check_in_time, check_out_time)')
+          .not('carer_id', 'is', null); // must be assigned to a carer
+      var visitQuery = Supabase.instance.client.from('route_visits')
+          .select('*, routes(name), service_users(name)');
+
+      if (clientType == 'service_user') {
+        // Bill the individual service user
+        shiftQuery = shiftQuery.eq('service_user_id', clientId);
+        visitQuery = visitQuery.eq('service_user_id', clientId);
+      } else {
+        // Bill the client organisation (care home/factory/warehouse) -
+        // match shifts and visits that carry the client_organisation_id
+        shiftQuery = shiftQuery.eq('client_organisation_id', clientId);
+        visitQuery = visitQuery.eq('client_organisation_id', clientId);
+      }
+
+      // Status strategy - only billable statuses. Default = completed only.
+      // Optionally include confirmed for in-advance billing.
+      final statuses = _includeConfirmed
+          ? ['completed', 'confirmed']
+          : ['completed'];
+      final shifts = await shiftQuery
+          .inFilter('status', statuses)
+          .gte('scheduled_date', start)
+          .lte('scheduled_date', end);
+
+      // Route visits for this client
+      final routeVisits = await visitQuery
+          .not('status', 'eq', 'cancelled')
+          .gte('visit_date', start)
+          .lte('visit_date', end);
+
+      final lineItems = <Map<String, dynamic>>[];
+
+      // ── Process shifts (with invoice-accuracy rules) ──
+      for (final s in (shifts as List).cast<Map<String, dynamic>>()) {
+        final status = (s['status'] as String?) ?? '';
+        final carerId = s['carer_id'] as String?;
+
+        // Rule: must be assigned to a carer.
+        if (carerId == null || carerId.isEmpty) continue;
+
+        // For completed shifts the care home must have signed off the digital
+        // timesheet: a visit with check_in_time present, not disputed,
+        // and not voided/delined.
+        if (status == 'completed') {
+          final visits = (s['visits'] as List?) ?? [];
+          bool signedOff = false;
+          for (final v in visits.cast<Map<String, dynamic>>()) {
+            final checkIn = v['check_in_time'];
+            final disputed = v['disputed'] == true;
+            final signOff = (v['sign_off_status'] as String?) ?? 'pending';
+            if (checkIn != null && !disputed &&
+                signOff != 'voided' && signOff != 'disputed') {
+              signedOff = true;
+              break;
+            }
+          }
+          if (!signedOff) continue; // NOT signed off → exclude from invoice
+        }
+
+        // Compute hours: prefer actual clocked visit times when available,
+        // fall back to the scheduled shift window.
+        double hours = 0;
+        String window = '';
+        if (status == 'completed') {
+          final visits = (s['visits'] as List?) ?? [];
+          double? actualMinutes;
+          for (final v in visits.cast<Map<String, dynamic>>()) {
+            final inT = DateTime.tryParse(v['check_in_time']?.toString() ?? '');
+            final outT = DateTime.tryParse(v['check_out_time']?.toString() ?? '');
+            if (inT != null && outT != null && outT.isAfter(inT)) {
+              final m = outT.difference(inT).inMinutes;
+              actualMinutes = (actualMinutes ?? 0) + m;
+            }
+          }
+          if (actualMinutes != null && actualMinutes! > 0) {
+            hours = actualMinutes / 60.0;
+            window = ' (clocked ${hours.toStringAsFixed(2)}h)';
+          }
+        }
+        if (hours == 0) {
+          final startTime = s['start_time'] as String? ?? '';
+          final endTime = s['end_time'] as String? ?? '';
+          hours = _calculateHours(startTime, endTime);
+          window = ' ($startTime-$endTime)';
+        }
+
+        final suName = (s['service_users'] as Map<String, dynamic>?)?['name'] ?? 'SU';
+        final carerName = (s['carers'] as Map<String, dynamic>?)?['name'] ?? 'Staff';
+        lineItems.add({
+          'description': 'Shift - ${s['scheduled_date']}$window - $suName ($carerName)',
+          'quantity': 1,
+          'unit_price': rate, // per-hour rate from care home / override
+          'total': hours * rate,
+          'hours': hours,
+          'type': 'shift',
+          'source_id': s['id'],
+        });
+      }
+
+      // Process route visits
+      for (final rv in (routeVisits as List).cast<Map<String, dynamic>>()) {
+        final minutes = (rv['duration_minutes'] as num?)?.toDouble() ?? 60.0;
+        final hours = minutes / 60.0;
+        final routeName = (rv['routes'] as Map<String, dynamic>?)?['name'] ?? 'Route';
+        final suName = (rv['service_users'] as Map<String, dynamic>?)?['name'] ?? 'SU';
+        lineItems.add({
+          'description': 'Route call - ${rv['visit_date']} - ${routeName} - $suName',
+          'quantity': 1,
+          'unit_price': rate,
+          'total': hours * rate,
+          'hours': hours,
+          'type': 'route_visit',
+          'source_id': rv['id'],
+        });
+      }
+
+      if (lineItems.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No billed shifts or route visits found for this period'), backgroundColor: Colors.orange));
+        }
+        setState(() => _saving = false);
+        return;
+      }
+
+      // Add a summary row
+      final totalHours = lineItems.fold<double>(0, (sum, item) => sum + ((item['hours'] as double?) ?? 0));
+      final totalAmount = lineItems.fold<double>(0, (sum, item) => sum + ((item['total'] as double?) ?? 0));
+      lineItems.add({
+        'description': 'Total - ${lineItems.length} entries, ${totalHours.toStringAsFixed(1)} hours @ £${rate.toStringAsFixed(2)}/hr',
+        'quantity': 1,
+        'unit_price': totalAmount,
+        'total': totalAmount,
+        'hours': totalHours,
+        'type': 'summary',
+      });
+
+      setState(() {
+        _lineItems = lineItems;
+        _saving = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Calculated ${lineItems.length - 1} entries (${totalHours.toStringAsFixed(1)} hours)'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      setState(() => _saving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  double _calculateHours(String startTime, String endTime) {
+    try {
+      final start = startTime.split(':');
+      final end = endTime.split(':');
+      if (start.length < 2 || end.length < 2) return 1.0;
+      final startH = int.tryParse(start[0]) ?? 0;
+      final startM = int.tryParse(start[1]) ?? 0;
+      final endH = int.tryParse(end[0]) ?? 0;
+      final endM = int.tryParse(end[1]) ?? 0;
+      final totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      return totalMinutes > 0 ? totalMinutes / 60.0 : 1.0;
+    } catch (_) {
+      return 1.0;
     }
   }
 
@@ -263,93 +529,117 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Client', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Billable Client', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'Client Type *', border: OutlineInputBorder()),
-              value: _selectedClientType,
-              items: const [
-                DropdownMenuItem(value: 'service_user', child: Text('Service User')),
-                DropdownMenuItem(value: 'care_home', child: Text('Care Home')),
-                DropdownMenuItem(value: 'council', child: Text('Council')),
-                DropdownMenuItem(value: 'other', child: Text('Manual Entry')),
-              ],
-              onChanged: (v) {
-                setState(() {
-                  _selectedClientType = v;
-                  _selectedClientId = null;
-                  _clientName = '';
-                  _clientAddress = null;
-                  _clientEmail = null;
-                });
-              },
-              validator: (v) => v == null ? 'Required' : null,
-            ),
-            const SizedBox(height: 12),
-            if (_selectedClientType == 'service_user' && _serviceUsers.isNotEmpty)
+            // Unified client dropdown - all billable service users / care homes
+            if (_serviceUsers.isNotEmpty)
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Select Service User', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Select Client *',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.business),
+                ),
                 value: _selectedClientId,
-                items: _serviceUsers.map((su) => DropdownMenuItem(value: su['id']?.toString(), child: Text(su['name'] ?? 'Unknown'))).toList(),
+                items: _serviceUsers.map((su) {
+                  final clientType = su['client_type'] ?? 'service_user';
+                  String label = su['name'] ?? 'Unknown';
+                  switch (clientType) {
+                    case 'care_home': label = '🏠 $label (Care Home)'; break;
+                    case 'warehouse': label = '🏭 $label (Warehouse)'; break;
+                    case 'hospital': label = '🏥 $label (Hospital)'; break;
+                    case 'council': label = '🏛 $label (Council)'; break;
+                    default: break;
+                  }
+                  return DropdownMenuItem(
+                    value: su['id']?.toString(),
+                    child: Text(label, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
                 onChanged: (v) {
+                  if (v == null) return;
+                  final user = _serviceUsers.firstWhere((u) => u['id']?.toString() == v, orElse: () => {});
+                  final clientRate = (user['rate'] as num?)?.toDouble() ?? 20.0;
                   setState(() {
                     _selectedClientId = v;
-                    final user = _serviceUsers.firstWhere((su) => su['id']?.toString() == v, orElse: () => {});
+                    _selectedClientType = (user['client_type'] as String?) ?? 'service_user';
                     _clientName = user['name'] ?? '';
                     _clientAddress = user['address'];
                     _clientEmail = user['email'];
+                    _selectedClientRate = clientRate;
+                    _hourlyRateController.text = clientRate.toStringAsFixed(2);
                   });
                 },
-              ),
-            if (_selectedClientType == 'care_home' && _careHomes.isNotEmpty)
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Select Care Home', border: OutlineInputBorder()),
-                value: _selectedClientId,
-                items: _careHomes.map((ch) => DropdownMenuItem(value: ch['id']?.toString(), child: Text(ch['name'] ?? 'Unknown'))).toList(),
-                onChanged: (v) {
-                  setState(() {
-                    _selectedClientId = v;
-                    final home = _careHomes.firstWhere((ch) => ch['id']?.toString() == v, orElse: () => {});
-                    _clientName = home['name'] ?? '';
-                    _clientAddress = home['address'];
-                    _clientEmail = home['email'];
-                  });
-                },
-              ),
-            if (_selectedClientType == 'council' && _councils.isNotEmpty)
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Select Council', border: OutlineInputBorder()),
-                value: _selectedClientId,
-                items: _councils.map((co) => DropdownMenuItem(value: co['id']?.toString(), child: Text(co['name'] ?? 'Unknown'))).toList(),
-                onChanged: (v) {
-                  setState(() {
-                    _selectedClientId = v;
-                    final council = _councils.firstWhere((co) => co['id']?.toString() == v, orElse: () => {});
-                    _clientName = council['name'] ?? '';
-                    _clientAddress = council['address'];
-                    _clientEmail = council['email'];
-                  });
-                },
-              ),
-            if (_selectedClientType == 'other' || _selectedClientType == null)
+                validator: (v) => v == null ? 'Required' : null,
+              )
+            else
+              const Center(child: Text('No billable clients found', style: TextStyle(color: Colors.grey))),
+            const SizedBox(height: 12),
+            if (_selectedClientId != null) ...[
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Client Name *', border: OutlineInputBorder()),
                 initialValue: _clientName,
                 onChanged: (v) => setState(() => _clientName = v),
-                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
-            const SizedBox(height: 12),
-            TextFormField(
-              decoration: const InputDecoration(labelText: 'Client Address', border: OutlineInputBorder()),
-              initialValue: _clientAddress,
-              onChanged: (v) => setState(() => _clientAddress = v),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              decoration: const InputDecoration(labelText: 'Client Email', border: OutlineInputBorder()),
-              initialValue: _clientEmail,
-              onChanged: (v) => setState(() => _clientEmail = v),
-            ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Client Address', border: OutlineInputBorder()),
+                initialValue: _clientAddress ?? '',
+                onChanged: (v) => setState(() => _clientAddress = v),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Client Email', border: OutlineInputBorder()),
+                initialValue: _clientEmail ?? '',
+                onChanged: (v) => setState(() => _clientEmail = v),
+              ),
+              const SizedBox(height: 12),
+              // Hourly rate - pulled from care home's billing_rate_per_hour,
+              // editable so admin can override per invoice.
+              TextFormField(
+                controller: _hourlyRateController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Hourly Rate (£ per hour)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.payments),
+                ),
+                onChanged: (v) {
+                  final r = double.tryParse(v.trim());
+                  if (r != null) setState(() => _selectedClientRate = r);
+                },
+              ),
+              const SizedBox(height: 12),
+              // Auto-calculate hours
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : _autoCalculateHours,
+                  icon: const Icon(Icons.calculate),
+                  label: Text(_saving ? 'Calculating…' : 'Auto-Calculate Hours for Selected Period'),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // In-advance billing toggle (confirmed shifts)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Include confirmed shifts (billing in advance)',
+                    style: TextStyle(fontSize: 13)),
+                subtitle: const Text('Unticked = only completed + signed-off shifts',
+                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                value: _includeConfirmed,
+                onChanged: (v) => setState(() => _includeConfirmed = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              const SizedBox(height: 4),
+              // Accuracy explanation
+              Text(
+                'Only shifts that are assigned to a carer and signed off on the digital '
+                'timesheet (check-in recorded, not disputed/voided) are invoiced.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ],
           ],
         ),
       ),

@@ -23,14 +23,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _checkSessionOnStartup();
   }
 
+  /// PERFORMANCE FIX (-d edge / web hot restarts):
+  /// This runs in initState, so it re-executes on EVERY hot restart. The two
+  /// startup checks used to run SEQUENTIALLY (await one, then the other),
+  /// roughly doubling the spinner time before the UI could decide what to
+  /// show. They are independent lookups, so they now run concurrently via
+  /// Future.wait. Behaviour is identical — we still need BOTH results before
+  /// deciding between login / biometric unlock / the app.
   Future<void> _checkSessionOnStartup() async {
     final authService = context.read<SupabaseAuthService>();
-    final hasCached = await authService.hasSessionCached();
-    final biometricAvailable = await authService.isBiometricAvailable();
-
+    final results = await Future.wait<bool>([
+      authService.hasSessionCached(),
+      authService.isBiometricAvailable(), // returns instantly on web (see service)
+    ]);
+    if (!mounted) return;
     setState(() {
       _checkingSession = false;
-      _showBiometric = hasCached && biometricAvailable;
+      _showBiometric = results[0] && results[1];
     });
   }
 
@@ -59,12 +68,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Widget _buildRoleGate(SupabaseAuthService authService) {
-    // Block access if profile hasn't loaded yet (role is null)
-    if (authService.userRole == null) {
+    // Show spinner while profile is still loading after auth
+    if (!authService.isProfileLoaded) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
+    // Profile load finished but role is unknown (e.g. no profiles row / RLS error).
+    // Do NOT spin forever — sign out and return to login so the user can retry.
+    if (authService.userRole == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        authService.signOut();
+      });
+      return const LoginScreen();
+    }
+
     return widget.authenticatedChild;
   }
 }

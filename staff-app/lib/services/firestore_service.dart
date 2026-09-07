@@ -13,10 +13,10 @@ class FirestoreService {
       final response = await _supabase
           .from('shifts')
           .select()
-          .eq('carerId', carerId);
+          .eq('carer_id', carerId);
       
       return (response as List<dynamic>)
-          .map((item) => Shift.fromMap(item as Map<String, dynamic>, item['id']))
+          .map((item) => Shift.fromMap(item as Map<String, dynamic>))
           .toList();
     } catch (e) {
       print('Error getting shifts: $e');
@@ -51,7 +51,7 @@ class FirestoreService {
       final response = await _supabase
           .from('visits')
           .select()
-          .eq('carerId', carerId);
+          .eq('carer_id', carerId);
       
       return (response as List<dynamic>)
           .map((item) => Visit.fromMap(item as Map<String, dynamic>, item['id']))

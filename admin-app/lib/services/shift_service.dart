@@ -81,6 +81,8 @@ class RouteSchedule {
   final String? carerId;
   final DateTime proposedStartTime;
   final DateTime proposedEndTime;
+  final DateTime? actualStartTime;
+  final DateTime? actualEndTime;
   final bool respite;
   final int callNumber;
   final String status;
@@ -95,6 +97,8 @@ class RouteSchedule {
     this.carerId,
     required this.proposedStartTime,
     required this.proposedEndTime,
+    this.actualStartTime,
+    this.actualEndTime,
     this.respite = false,
     required this.callNumber,
     this.status = 'scheduled',
@@ -112,6 +116,12 @@ class RouteSchedule {
             DateTime.tryParse(json['proposed_start_time'] ?? '') ?? DateTime.now(),
         proposedEndTime:
             DateTime.tryParse(json['proposed_end_time'] ?? '') ?? DateTime.now(),
+        actualStartTime: json['actual_start_time'] != null
+            ? DateTime.tryParse(json['actual_start_time'] as String)
+            : null,
+        actualEndTime: json['actual_end_time'] != null
+            ? DateTime.tryParse(json['actual_end_time'] as String)
+            : null,
         respite: json['respite'] as bool? ?? false,
         callNumber: json['call_number'] as int? ?? 0,
         status: json['status'] as String? ?? 'scheduled',
@@ -135,7 +145,6 @@ class ShiftService {
         .single();
 
     final role = profile['role'] as String? ?? '';
-    final organisationId = profile['organisation_id'] as String?;
     final clientOrgId = profile['client_organisation_id'] as String?;
 
     final dateStr = date.toIso8601String().split('T')[0];

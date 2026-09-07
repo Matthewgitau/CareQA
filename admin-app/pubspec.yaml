@@ -28,6 +28,9 @@ dependencies:
   file_picker: ^8.0.0
   uuid: ^4.0.0
 
+  # Stripe Checkout (open payment page in browser + return to app)
+  url_launcher: ^6.1.0
+
   # Image and OCR
   image_picker: ^1.0.0
   google_mlkit_text_recognition: ^0.12.0

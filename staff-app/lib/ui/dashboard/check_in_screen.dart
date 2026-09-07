@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:staff_app/services/auth_service.dart';
+import 'package:staff_app/services/supabase_auth_service.dart';
 import 'package:staff_app/services/firestore_service.dart';
 import 'package:staff_app/models/shift.dart';
 import 'package:staff_app/models/visit.dart';
@@ -27,19 +27,18 @@ class _CheckInScreenState extends State<CheckInScreen> {
 
   Future<void> _loadExistingVisit() async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUser = authService.getCurrentUser();
+    final authService = Provider.of<SupabaseAuthService>(context, listen: false);
+    final currentUser = authService.currentUser;
 
     if (currentUser != null) {
       final visits = await firestoreService
-          .getVisitsByCarer(currentUser.uid)
-          .first;
+          .getVisitsByCarer(currentUser.id);
       _existingVisit = visits.firstWhere(
         (visit) => visit.shiftId == widget.shift.id,
         orElse: () => Visit(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           shiftId: widget.shift.id,
-          carerId: currentUser.uid,
+          carerId: currentUser.id,
           notes: '',
         ),
       );
@@ -53,15 +52,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
     });
 
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUser = authService.getCurrentUser();
+    final authService = Provider.of<SupabaseAuthService>(context, listen: false);
+    final currentUser = authService.currentUser;
 
     if (currentUser != null) {
       try {
         final visit = Visit(
           id: _existingVisit?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
           shiftId: widget.shift.id,
-          carerId: currentUser.uid,
+          carerId: currentUser.id,
           checkInTime: DateTime.now(),
           checkOutTime: _existingVisit?.checkOutTime,
           notes: _existingVisit?.notes ?? '',
@@ -96,15 +95,15 @@ class _CheckInScreenState extends State<CheckInScreen> {
     });
 
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final currentUser = authService.getCurrentUser();
+    final authService = Provider.of<SupabaseAuthService>(context, listen: false);
+    final currentUser = authService.currentUser;
 
     if (currentUser != null) {
       try {
         final visit = Visit(
           id: _existingVisit?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
           shiftId: widget.shift.id,
-          carerId: currentUser.uid,
+          carerId: currentUser.id,
           checkInTime: _existingVisit?.checkInTime,
           checkOutTime: DateTime.now(),
           notes: _notesController.text.trim(),
@@ -158,10 +157,10 @@ class _CheckInScreenState extends State<CheckInScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Date: ${widget.shift.date.toString().split(' ')[0]}'),
+                    Text('Date: ${widget.shift.scheduledDate ?? 'N/A'}'),
                     const SizedBox(height: 5),
                     Text(
-                      'Time: ${widget.shift.startTime.hour.toString().padLeft(2, '0')}:${widget.shift.startTime.minute.toString().padLeft(2, '0')} - ${widget.shift.endTime.hour.toString().padLeft(2, '0')}:${widget.shift.endTime.minute.toString().padLeft(2, '0')}',
+                      'Time: ${widget.shift.startTime} - ${widget.shift.endTime}',
                     ),
                     const SizedBox(height: 5),
                     Text('Status: ${widget.shift.status}'),
